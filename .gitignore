@@ -1,0 +1,10 @@
+.env
+.idea/
+.vscode/
+*.iml
+backend/target/
+backend/uploads/
+frontend/node_modules/
+frontend/.next/
+frontend/.env.local
+*.log

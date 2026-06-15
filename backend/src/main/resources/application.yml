@@ -1,0 +1,31 @@
+spring:
+  application:
+    name: classflow-api
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/classflow}
+    username: ${DB_USER:classflow}
+    password: ${DB_PASSWORD:classflow}
+  flyway:
+    enabled: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+server:
+  port: ${SERVER_PORT:8080}
+  forward-headers-strategy: framework
+app:
+  jwt-secret: ${JWT_SECRET:classflow-development-secret-must-be-at-least-32-characters}
+  jwt-expiration-hours: ${JWT_EXPIRATION_HOURS:12}
+  upload-dir: ${UPLOAD_DIR:./uploads}
+  secure-cookies: ${SECURE_COOKIES:false}
+  allowed-origin: ${ALLOWED_ORIGIN:http://localhost:3000}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
