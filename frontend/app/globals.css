@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --background: #070b09;
+  --foreground: #eefbf2;
+}
+
+* { border-color: #1d2a22; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  color: var(--foreground);
+  background:
+    radial-gradient(circle at 10% -10%, rgba(85, 249, 145, .13), transparent 30rem),
+    radial-gradient(circle at 100% 25%, rgba(85, 249, 145, .06), transparent 24rem),
+    var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer components {
+  .panel { @apply rounded-2xl border border-line bg-panel/90 shadow-glow; }
+  .card { @apply rounded-xl border border-line bg-white/[.025] p-5; }
+  .input { @apply w-full rounded-lg border border-line bg-ink px-3 py-2.5 text-sm text-white outline-none transition focus:border-neon/70 focus:ring-2 focus:ring-neon/10; }
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg bg-neon px-4 py-2.5 text-sm font-bold text-ink transition hover:bg-mint disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-secondary { @apply inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-white/[.035] px-4 py-2.5 text-sm font-semibold text-white transition hover:border-neon/50 hover:bg-neon/5; }
+  .label { @apply mb-1.5 block text-xs font-bold uppercase tracking-widest text-white/50; }
+  .badge { @apply inline-flex rounded-full border border-neon/25 bg-neon/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-neon; }
+}
