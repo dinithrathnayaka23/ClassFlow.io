@@ -4,8 +4,11 @@ import {
   ArrowRight,
   Bot,
   CheckCircle2,
+  Facebook,
   GraduationCap,
+  Instagram,
   Layers3,
+  Linkedin,
   MessageSquareText,
   ShieldCheck,
   Sparkles,
@@ -48,6 +51,24 @@ const teacherDetails = [
     label: "Teaching experience",
     value:
       "8+ years guiding O/L and A/L students through structured lessons, weekly practice, and exam-focused feedback.",
+  },
+];
+
+const socialLinks = [
+  {
+    href: "https://www.linkedin.com/in/your-profile",
+    icon: Linkedin,
+    label: "LinkedIn",
+  },
+  {
+    href: "https://www.facebook.com/your-profile",
+    icon: Facebook,
+    label: "Facebook",
+  },
+  {
+    href: "https://www.instagram.com/your-profile",
+    icon: Instagram,
+    label: "Instagram",
   },
 ];
 
@@ -251,6 +272,38 @@ export default function Home() {
           ))}
         </div>
       </section>
+
+      <footer className="border-t border-line bg-ink/55">
+        <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 py-10 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <Brand />
+            <p className="mt-4 max-w-md text-sm leading-6 text-white/45">
+              Follow my teaching updates, class announcements, and student
+              success stories across social media.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {socialLinks.map(({ href, icon: Icon, label }) => (
+              <a
+                aria-label={label}
+                className="btn-secondary h-11 w-11 px-0 py-0"
+                href={href}
+                key={label}
+                rel="noreferrer"
+                target="_blank"
+                title={label}
+              >
+                <Icon size={18} />
+              </a>
+            ))}
+          </div>
+        </div>
+        <div className="mx-auto flex max-w-7xl flex-col gap-2 border-t border-line px-6 py-5 text-xs text-white/35 sm:flex-row sm:items-center sm:justify-between">
+          <p>ClassFlow 2026. All rights reserved.</p>
+          <p>Designed for focused tuition learning.</p>
+        </div>
+      </footer>
     </main>
   );
 }
