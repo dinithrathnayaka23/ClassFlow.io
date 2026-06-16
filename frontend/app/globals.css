@@ -8,9 +8,21 @@
   syntax: "<angle>";
 }
 
+@property --button-border-angle {
+  inherits: false;
+  initial-value: 0deg;
+  syntax: "<angle>";
+}
+
 @keyframes border {
   to {
     --border-angle: 360deg;
+  }
+}
+
+@keyframes button-gradient-spin {
+  to {
+    --button-border-angle: 360deg;
   }
 }
 
@@ -86,15 +98,64 @@ body {
     @apply w-full rounded-lg border border-line bg-ink px-3 py-2.5 text-sm text-white outline-none transition focus:border-neon/70 focus:ring-2 focus:ring-neon/10;
   }
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-neon px-4 py-2.5 text-sm font-bold text-ink transition hover:bg-mint disabled:cursor-not-allowed disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-neon px-4 py-2.5 text-sm font-bold text-ink transition duration-200 hover:bg-mint disabled:cursor-not-allowed disabled:opacity-50;
+    box-shadow: 0 0 22px rgba(85, 249, 145, 0.14);
+  }
+  .btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 0 26px rgba(85, 249, 145, 0.2);
+  }
+  .btn:disabled {
+    transform: none;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-line bg-white/[.035] px-4 py-2.5 text-sm font-semibold text-white transition hover:border-neon/50 hover:bg-neon/5;
+    --button-border-angle: 0deg;
+    @apply relative isolate inline-flex items-center justify-center gap-2 overflow-hidden rounded-full border-2 border-transparent px-4 py-2.5 text-sm font-semibold text-white transition duration-200;
+    animation: button-gradient-spin 3.2s linear infinite;
+    background:
+      linear-gradient(135deg, rgba(7, 11, 9, 0.98), rgba(13, 20, 16, 0.94))
+        padding-box,
+      conic-gradient(
+          from var(--button-border-angle) at 50% 50%,
+          rgba(182, 255, 208, 0.7) 0%,
+          rgba(85, 249, 145, 0.45) 32%,
+          rgba(29, 42, 34, 0.9) 52%,
+          rgba(85, 249, 145, 0.45) 72%,
+          rgba(182, 255, 208, 0.7) 100%
+        )
+        border-box;
+  }
+  .btn-secondary:hover {
+    transform: translateY(-1px);
+    background:
+      linear-gradient(135deg, rgba(7, 11, 9, 0.96), rgba(85, 249, 145, 0.08))
+        padding-box,
+      conic-gradient(
+          from var(--button-border-angle) at 50% 50%,
+          rgba(182, 255, 208, 0.9) 0%,
+          rgba(85, 249, 145, 0.65) 32%,
+          rgba(29, 42, 34, 0.85) 52%,
+          rgba(85, 249, 145, 0.65) 72%,
+          rgba(182, 255, 208, 0.9) 100%
+        )
+        border-box;
+    box-shadow: 0 0 24px rgba(85, 249, 145, 0.12);
+  }
+  .btn:focus-visible,
+  .btn-secondary:focus-visible {
+    outline: 2px solid rgba(182, 255, 208, 0.78);
+    outline-offset: 3px;
   }
   .label {
     @apply mb-1.5 block text-xs font-bold uppercase tracking-widest text-white/50;
   }
   .badge {
     @apply inline-flex rounded-full border border-neon/25 bg-neon/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-neon;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-secondary {
+    animation: none;
   }
 }
