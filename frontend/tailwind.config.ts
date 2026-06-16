@@ -13,6 +13,9 @@ export default {
       },
       boxShadow: {
         glow: "0 0 35px rgba(85, 249, 145, .14)"
+      },
+      backdropBlur: {
+        xs: "2px"
       }
     }
   },

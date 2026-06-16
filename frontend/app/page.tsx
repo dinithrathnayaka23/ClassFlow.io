@@ -9,6 +9,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Brand } from "@/components/Brand";
+import { LiquidGlassCard } from "@/components/ui/liquid-glass";
 
 const features = [
   {
@@ -80,62 +81,71 @@ export default function Home() {
             ))}
           </div>
         </div>
-        <div className="panel relative p-4 sm:p-7">
-          <div className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-neon/10 blur-3xl" />
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-white/35">
-                Monday overview
-              </p>
-              <h2 className="mt-1 text-xl font-black">Good morning, Amaya</h2>
-            </div>
-            <span className="grid h-10 w-10 place-items-center rounded-full bg-neon font-black text-ink">
-              AS
-            </span>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {[
-              ["02", "Classes today"],
-              ["01", "Due soon"],
-              ["84%", "Quiz average"],
-            ].map(([value, label]) => (
-              <div className="card" key={label}>
-                <p className="text-2xl font-black text-neon">{value}</p>
-                <p className="mt-1 text-xs text-white/45">{label}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-4 card">
-            <p className="text-xs font-bold uppercase tracking-widest text-white/35">
-              Up next
-            </p>
-            <div className="mt-4 flex items-center justify-between gap-4">
+        <LiquidGlassCard
+          blurIntensity="sm"
+          borderRadius="16px"
+          className="isolate overflow-hidden border border-neon/20 bg-panel/45 p-4 sm:p-7"
+          displacementScale={34}
+          draggable={false}
+          glowIntensity="none"
+          shadowIntensity="none"
+        >
+          <div className="relative z-30">
+            <div className="mb-6 flex items-center justify-between">
               <div>
-                <p className="font-bold">A/L Mathematics</p>
+                <p className="text-xs font-bold uppercase tracking-widest text-white/35">
+                  Monday overview
+                </p>
+                <h2 className="mt-1 text-xl font-black">Good morning, Amaya</h2>
+              </div>
+              <span className="grid h-10 w-10 place-items-center rounded-full bg-neon font-black text-ink">
+                AS
+              </span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {[
+                ["02", "Classes today"],
+                ["01", "Due soon"],
+                ["84%", "Quiz average"],
+              ].map(([value, label]) => (
+                <div className="card" key={label}>
+                  <p className="text-2xl font-black text-neon">{value}</p>
+                  <p className="mt-1 text-xs text-white/45">{label}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 card">
+              <p className="text-xs font-bold uppercase tracking-widest text-white/35">
+                Up next
+              </p>
+              <div className="mt-4 flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-bold">A/L Mathematics</p>
+                  <p className="mt-1 text-sm text-white/45">
+                    Functions: paper discussion
+                  </p>
+                </div>
+                <span className="badge">4:30 PM</span>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className="card">
+                <ShieldCheck className="text-neon" size={22} />
+                <p className="mt-4 font-bold">Feedback received</p>
                 <p className="mt-1 text-sm text-white/45">
-                  Functions: paper discussion
+                  Functions practice paper · 82/100
                 </p>
               </div>
-              <span className="badge">4:30 PM</span>
+              <div className="card">
+                <Bot className="text-neon" size={22} />
+                <p className="mt-4 font-bold">Need a hand?</p>
+                <p className="mt-1 text-sm text-white/45">
+                  Ask ClassFlow where to find notes.
+                </p>
+              </div>
             </div>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div className="card">
-              <ShieldCheck className="text-neon" size={22} />
-              <p className="mt-4 font-bold">Feedback received</p>
-              <p className="mt-1 text-sm text-white/45">
-                Functions practice paper · 82/100
-              </p>
-            </div>
-            <div className="card">
-              <Bot className="text-neon" size={22} />
-              <p className="mt-4 font-bold">Need a hand?</p>
-              <p className="mt-1 text-sm text-white/45">
-                Ask ClassFlow where to find notes.
-              </p>
-            </div>
-          </div>
-        </div>
+        </LiquidGlassCard>
       </section>
 
       <section id="features" className="mx-auto max-w-7xl px-6 py-24">
