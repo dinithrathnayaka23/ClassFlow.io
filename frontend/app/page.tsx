@@ -1,12 +1,15 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowRight,
   Bot,
   CheckCircle2,
+  GraduationCap,
   Layers3,
   MessageSquareText,
   ShieldCheck,
   Sparkles,
+  UserRoundCheck,
 } from "lucide-react";
 import { Brand } from "@/components/Brand";
 import { LiquidGlassCard } from "@/components/ui/liquid-glass";
@@ -30,6 +33,23 @@ const features = [
 ];
 
 const featureCardClass = "panel landing-gradient-card";
+
+const teacherDetails = [
+  {
+    label: "Name",
+    value: "Mr. Kavindu Jayasinghe",
+  },
+  {
+    label: "Education background",
+    value:
+      "BSc in Mathematics, University of Colombo, with a postgraduate diploma in education.",
+  },
+  {
+    label: "Teaching experience",
+    value:
+      "8+ years guiding O/L and A/L students through structured lessons, weekly practice, and exam-focused feedback.",
+  },
+];
 
 export default function Home() {
   return (
@@ -149,6 +169,69 @@ export default function Home() {
             </div>
           </div>
         </LiquidGlassCard>
+      </section>
+
+      <section
+        id="teacher"
+        className="mx-auto grid max-w-7xl items-center gap-10 px-6 py-20 lg:grid-cols-[.9fr_1.1fr]"
+      >
+        <div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-neon/20 bg-panel">
+          <Image
+            alt="Sample teacher portrait"
+            className="aspect-[4/5] h-auto w-full object-cover"
+            height={1536}
+            sizes="(min-width: 1024px) 420px, 100vw"
+            src="/images/sample-teacher.png"
+            width={1024}
+          />
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink via-ink/70 to-transparent p-5">
+            <p className="text-xs font-bold uppercase tracking-[.25em] text-neon">
+              Lead teacher
+            </p>
+            <p className="mt-1 text-xl font-black">Mathematics specialist</p>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[.25em] text-neon">
+            About the teacher
+          </p>
+          <h2 className="mt-3 max-w-2xl text-3xl font-black sm:text-5xl">
+            Learn from a teacher who keeps every student visible.
+          </h2>
+          <p className="mt-5 max-w-2xl leading-8 text-white/50">
+            This sample profile can be replaced with your real details and
+            photo later. It gives the landing page a personal, trustworthy
+            introduction before students enter the workspace.
+          </p>
+
+          <div className="mt-8 grid gap-3">
+            {teacherDetails.map((item) => (
+              <div
+                className="rounded-xl border border-line bg-white/[.025] p-5"
+                key={item.label}
+              >
+                <p className="text-xs font-bold uppercase tracking-widest text-white/35">
+                  {item.label}
+                </p>
+                <p className="mt-2 text-base font-semibold leading-7 text-white/80">
+                  {item.value}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3 text-sm text-white/45">
+            <span className="inline-flex items-center gap-2 rounded-full border border-neon/20 bg-neon/10 px-3 py-1.5 text-neon">
+              <GraduationCap size={16} />
+              Exam-focused mentoring
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-full border border-neon/20 bg-neon/10 px-3 py-1.5 text-neon">
+              <UserRoundCheck size={16} />
+              Individual progress tracking
+            </span>
+          </div>
+        </div>
       </section>
 
       <section id="features" className="mx-auto max-w-7xl px-6 py-24">
