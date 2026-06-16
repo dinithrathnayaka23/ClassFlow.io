@@ -6,21 +6,261 @@ import { api } from "@/lib/api";
 import { Card, Empty, Notice, SectionTitle } from "@/components/ui";
 import { CoursePicker, Field, Modal, formatDate, useCourses } from "./shared";
 
-type Assignment = { id: number; title: string; description: string; deadline: string; attachmentUrl?: string; submissionStatus?: string; mark?: number; feedback?: string };
-type Submission = { id: number; studentName: string; fileUrl: string; fileName: string; status: string; submittedAt: string; mark?: number; feedback?: string };
+type Assignment = {
+  id: number;
+  title: string;
+  description: string;
+  deadline: string;
+  attachmentUrl?: string;
+  submissionStatus?: string;
+  mark?: number;
+  feedback?: string;
+};
+type Submission = {
+  id: number;
+  studentName: string;
+  fileUrl: string;
+  fileName: string;
+  status: string;
+  submittedAt: string;
+  mark?: number;
+  feedback?: string;
+};
 
-export function Assignments({ role, submissionsOnly = false }: { role: string; submissionsOnly?: boolean }) {
-  const { courses } = useCourses(); const [courseId, setCourseId] = useState<number>(); const [items, setItems] = useState<Assignment[]>([]);
-  const [open, setOpen] = useState(false); const [error, setError] = useState(""); const [submissions, setSubmissions] = useState<Record<number, Submission[]>>({});
-  useEffect(() => { if (!courseId && courses[0]) setCourseId(courses[0].id); }, [courses, courseId]);
-  const load = () => courseId && api<Assignment[]>(`/assignments?courseId=${courseId}`).then(setItems);
-  useEffect(() => { load(); }, [courseId]);
-  useEffect(() => { if (submissionsOnly && items.length) items.forEach(item => api<Submission[]>(`/assignments/${item.id}/submissions`).then(rows => setSubmissions(old => ({ ...old, [item.id]: rows })))); }, [submissionsOnly, items]);
-  async function create(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setError(""); const values = Object.fromEntries(new FormData(event.currentTarget)); try { await api("/assignments", { method: "POST", body: JSON.stringify({ ...values, courseId, deadline: new Date(String(values.deadline)).toISOString() }) }); setOpen(false); load(); } catch (e) { setError(e instanceof Error ? e.message : "Could not create assignment"); } }
-  async function submit(event: FormEvent<HTMLFormElement>, id: number) { event.preventDefault(); await api(`/assignments/${id}/submissions`, { method: "POST", body: new FormData(event.currentTarget) }); load(); }
-  async function grade(event: FormEvent<HTMLFormElement>, submission: Submission, assignmentId: number) { event.preventDefault(); await api(`/assignments/submissions/${submission.id}`, { method: "PATCH", body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))) }); const rows = await api<Submission[]>(`/assignments/${assignmentId}/submissions`); setSubmissions(old => ({ ...old, [assignmentId]: rows })); }
-  return <><SectionTitle eyebrow={submissionsOnly ? "Teacher review" : "Coursework"} title={submissionsOnly ? "Student submissions" : "Assignments"} action={role !== "student" && !submissionsOnly ? <button className="btn" onClick={() => setOpen(true)}><Plus size={16} />New assignment</button> : undefined} /><div className="mb-6"><CoursePicker courses={courses} value={courseId} onChange={setCourseId} /></div>
-    {items.length ? <div className="space-y-4">{items.map(item => <Card key={item.id}><div className="flex flex-col justify-between gap-5 md:flex-row"><div className="max-w-2xl"><div className="flex flex-wrap items-center gap-2"><span className="badge"><Clock3 size={12} className="mr-1" />Due {formatDate(item.deadline)}</span>{item.submissionStatus && <span className="badge">{item.submissionStatus}</span>}</div><h2 className="mt-4 text-lg font-black">{item.title}</h2><p className="mt-2 text-sm leading-6 text-white/45">{item.description}</p>{item.feedback && <p className="mt-4 rounded-lg border border-neon/20 bg-neon/5 p-3 text-sm text-mint"><b>Teacher feedback:</b> {item.feedback} {item.mark !== undefined && `· ${item.mark} marks`}</p>}</div>{role === "student" && <form className="min-w-56 space-y-3" onSubmit={e => submit(e, item.id)}><input className="input text-xs" type="file" name="file" required /><button className="btn w-full"><Upload size={15} />Submit work</button></form>}</div>{submissionsOnly && <div className="mt-6 border-t border-line pt-5"><p className="label">Submissions</p><div className="space-y-3">{(submissions[item.id] || []).map(row => <div className="rounded-lg border border-line p-4" key={row.id}><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-bold">{row.studentName}</p><p className="mt-1 text-xs text-white/35">{row.status} · {formatDate(row.submittedAt)}</p></div><a className="btn-secondary" href={row.fileUrl} target="_blank"><Download size={14} />{row.fileName}</a></div><form className="mt-4 grid gap-3 sm:grid-cols-[100px_1fr_auto]" onSubmit={e => grade(e, row, item.id)}><input className="input" name="mark" type="number" placeholder="Mark" defaultValue={row.mark} /><input className="input" name="feedback" placeholder="Feedback" defaultValue={row.feedback} /><button className="btn"><CheckCircle2 size={14} />Grade</button></form></div>)}{!(submissions[item.id] || []).length && <p className="text-sm text-white/35">No submissions yet.</p>}</div></div>}</Card>)}</div> : <Empty title="No assignments found" text="Assignments for this course will appear here." />}
-    <Modal title="Create assignment" open={open} onClose={() => setOpen(false)}><Notice error={error} /><form className="space-y-4" onSubmit={create}><Field label="Title"><input className="input" name="title" required /></Field><Field label="Description"><textarea className="input" rows={4} name="description" /></Field><Field label="Deadline"><input className="input" type="datetime-local" name="deadline" required /></Field><Field label="Optional resource link"><input className="input" type="url" name="attachmentUrl" /></Field><button className="btn w-full">Create assignment</button></form></Modal>
-  </>;
+export function Assignments({
+  role,
+  submissionsOnly = false,
+}: {
+  role: string;
+  submissionsOnly?: boolean;
+}) {
+  const { courses } = useCourses();
+  const [courseId, setCourseId] = useState<number>();
+  const [items, setItems] = useState<Assignment[]>([]);
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState("");
+  const [submissions, setSubmissions] = useState<Record<number, Submission[]>>(
+    {},
+  );
+  useEffect(() => {
+    if (!courseId && courses[0]) setCourseId(courses[0].id);
+  }, [courses, courseId]);
+  const load = () =>
+    courseId &&
+    api<Assignment[]>(`/assignments?courseId=${courseId}`).then(setItems);
+  useEffect(() => {
+    load();
+  }, [courseId]);
+  useEffect(() => {
+    if (submissionsOnly && items.length)
+      items.forEach((item) =>
+        api<Submission[]>(`/assignments/${item.id}/submissions`).then((rows) =>
+          setSubmissions((old) => ({ ...old, [item.id]: rows })),
+        ),
+      );
+  }, [submissionsOnly, items]);
+  async function create(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    const values = Object.fromEntries(new FormData(event.currentTarget));
+    try {
+      await api("/assignments", {
+        method: "POST",
+        body: JSON.stringify({
+          ...values,
+          courseId,
+          deadline: new Date(String(values.deadline)).toISOString(),
+        }),
+      });
+      setOpen(false);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not create assignment");
+    }
+  }
+  async function submit(event: FormEvent<HTMLFormElement>, id: number) {
+    event.preventDefault();
+    await api(`/assignments/${id}/submissions`, {
+      method: "POST",
+      body: new FormData(event.currentTarget),
+    });
+    load();
+  }
+  async function grade(
+    event: FormEvent<HTMLFormElement>,
+    submission: Submission,
+    assignmentId: number,
+  ) {
+    event.preventDefault();
+    await api(`/assignments/submissions/${submission.id}`, {
+      method: "PATCH",
+      body: JSON.stringify(
+        Object.fromEntries(new FormData(event.currentTarget)),
+      ),
+    });
+    const rows = await api<Submission[]>(
+      `/assignments/${assignmentId}/submissions`,
+    );
+    setSubmissions((old) => ({ ...old, [assignmentId]: rows }));
+  }
+  return (
+    <>
+      <SectionTitle
+        eyebrow={submissionsOnly ? "Teacher review" : "Coursework"}
+        title={submissionsOnly ? "Student submissions" : "Assignments"}
+        action={
+          role !== "student" && !submissionsOnly ? (
+            <button className="btn" onClick={() => setOpen(true)}>
+              <Plus size={16} />
+              New assignment
+            </button>
+          ) : undefined
+        }
+      />
+      <div className="mb-6">
+        <CoursePicker
+          courses={courses}
+          value={courseId}
+          onChange={setCourseId}
+        />
+      </div>
+      {items.length ? (
+        <div className="space-y-4">
+          {items.map((item) => (
+            <Card key={item.id}>
+              <div className="flex flex-col justify-between gap-5 md:flex-row">
+                <div className="max-w-2xl">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="badge">
+                      <Clock3 size={12} className="mr-1" />
+                      Due {formatDate(item.deadline)}
+                    </span>
+                    {item.submissionStatus && (
+                      <span className="badge">{item.submissionStatus}</span>
+                    )}
+                  </div>
+                  <h2 className="mt-4 text-lg font-black">{item.title}</h2>
+                  <p className="mt-2 text-sm leading-6 text-white/45">
+                    {item.description}
+                  </p>
+                  {item.feedback && (
+                    <p className="mt-4 rounded-lg border border-neon/20 bg-neon/5 p-3 text-sm text-mint">
+                      <b>Teacher feedback:</b> {item.feedback}{" "}
+                      {item.mark !== undefined && `· ${item.mark} marks`}
+                    </p>
+                  )}
+                </div>
+                {role === "student" && (
+                  <form
+                    className="min-w-56 space-y-3"
+                    onSubmit={(e) => submit(e, item.id)}
+                  >
+                    <input
+                      className="input text-xs"
+                      type="file"
+                      name="file"
+                      required
+                    />
+                    <button className="btn w-full">
+                      <Upload size={15} />
+                      Submit work
+                    </button>
+                  </form>
+                )}
+              </div>
+              {submissionsOnly && (
+                <div className="mt-6 border-t border-line pt-5">
+                  <p className="label">Submissions</p>
+                  <div className="space-y-3">
+                    {(submissions[item.id] || []).map((row) => (
+                      <div
+                        className="rounded-lg border border-line p-4"
+                        key={row.id}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <p className="font-bold">{row.studentName}</p>
+                            <p className="mt-1 text-xs text-white/35">
+                              {row.status} · {formatDate(row.submittedAt)}
+                            </p>
+                          </div>
+                          <a
+                            className="btn-secondary"
+                            href={row.fileUrl}
+                            target="_blank"
+                          >
+                            <Download size={14} />
+                            {row.fileName}
+                          </a>
+                        </div>
+                        <form
+                          className="mt-4 grid gap-3 sm:grid-cols-[100px_1fr_auto]"
+                          onSubmit={(e) => grade(e, row, item.id)}
+                        >
+                          <input
+                            className="input"
+                            name="mark"
+                            type="number"
+                            placeholder="Mark"
+                            defaultValue={row.mark}
+                          />
+                          <input
+                            className="input"
+                            name="feedback"
+                            placeholder="Feedback"
+                            defaultValue={row.feedback}
+                          />
+                          <button className="btn">
+                            <CheckCircle2 size={14} />
+                            Grade
+                          </button>
+                        </form>
+                      </div>
+                    ))}
+                    {!(submissions[item.id] || []).length && (
+                      <p className="text-sm text-white/35">
+                        No submissions yet.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Empty
+          title="No assignments found"
+          text="Assignments for this course will appear here."
+        />
+      )}
+      <Modal
+        title="Create assignment"
+        open={open}
+        onClose={() => setOpen(false)}
+      >
+        <Notice error={error} />
+        <form className="space-y-4" onSubmit={create}>
+          <Field label="Title">
+            <input className="input" name="title" required />
+          </Field>
+          <Field label="Description">
+            <textarea className="input" rows={4} name="description" />
+          </Field>
+          <Field label="Deadline">
+            <input
+              className="input"
+              type="datetime-local"
+              name="deadline"
+              required
+            />
+          </Field>
+          <Field label="Optional resource link">
+            <input className="input" type="url" name="attachmentUrl" />
+          </Field>
+          <button className="btn w-full">Create assignment</button>
+        </form>
+      </Modal>
+    </>
+  );
 }
