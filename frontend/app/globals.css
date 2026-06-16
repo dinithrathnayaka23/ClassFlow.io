@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+@property --border-angle {
+  inherits: false;
+  initial-value: 0deg;
+  syntax: "<angle>";
+}
+
+@keyframes border {
+  to {
+    --border-angle: 360deg;
+  }
+}
+
 :root {
   color-scheme: dark;
   --background: #070b09;
@@ -38,6 +50,24 @@ body {
   }
   .card {
     @apply rounded-xl border border-line bg-white/[.025] p-5;
+  }
+  .landing-gradient-card {
+    --border-angle: 0deg;
+    animation: border 4s linear infinite;
+    background:
+      linear-gradient(45deg, rgba(7, 11, 9, 0.94), rgba(13, 20, 16, 0.9))
+        padding-box,
+      conic-gradient(
+          from var(--border-angle),
+          rgba(29, 42, 34, 0.78),
+          rgba(85, 249, 145, 0.58),
+          rgba(182, 255, 208, 0.72),
+          rgba(85, 249, 145, 0.58),
+          rgba(29, 42, 34, 0.78)
+        )
+        border-box;
+    border-color: transparent;
+    box-shadow: none;
   }
   .input {
     @apply w-full rounded-lg border border-line bg-ink px-3 py-2.5 text-sm text-white outline-none transition focus:border-neon/70 focus:ring-2 focus:ring-neon/10;

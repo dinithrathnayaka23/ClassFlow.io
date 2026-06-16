@@ -29,6 +29,8 @@ const features = [
   },
 ];
 
+const featureCardClass = "panel landing-gradient-card";
+
 export default function Home() {
   return (
     <main className="min-h-screen overflow-hidden">
@@ -157,7 +159,7 @@ export default function Home() {
         </h2>
         <div className="mt-10 grid gap-4 md:grid-cols-3">
           {features.map(({ icon: Icon, title, text }) => (
-            <div className="panel p-7" key={title}>
+            <div className={`${featureCardClass} p-7`} key={title}>
               <Icon className="text-neon" />
               <h3 className="mt-8 text-xl font-black">{title}</h3>
               <p className="mt-3 leading-7 text-white/45">{text}</p>
