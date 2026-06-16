@@ -51,6 +51,19 @@ body {
   .card {
     @apply rounded-xl border border-line bg-white/[.025] p-5;
   }
+  .brand-mark-shell {
+    @apply relative block h-10 w-[3.9rem] shrink-0 transition duration-300 sm:h-11 sm:w-[4.25rem];
+    filter: drop-shadow(0 0 12px rgba(85, 249, 145, 0.32));
+  }
+  .group:hover .brand-mark-shell {
+    filter: drop-shadow(0 0 18px rgba(85, 249, 145, 0.48));
+  }
+  .brand-wordmark {
+    @apply min-w-0 text-lg font-black leading-none sm:text-2xl;
+    text-shadow:
+      0 0 14px rgba(238, 251, 242, 0.18),
+      0 0 24px rgba(85, 249, 145, 0.16);
+  }
   .landing-gradient-card {
     --border-angle: 0deg;
     animation: border 4s linear infinite;

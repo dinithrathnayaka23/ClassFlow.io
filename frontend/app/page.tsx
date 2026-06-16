@@ -37,7 +37,7 @@ export default function Home() {
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6">
         <Brand />
         <div className="flex items-center gap-3">
-          <Link className="btn-secondary" href="/login">
+          <Link className="btn-secondary max-[520px]:hidden" href="/login">
             Sign in
           </Link>
           <Link className="btn hidden sm:inline-flex" href="/login">
@@ -52,17 +52,18 @@ export default function Home() {
             <Sparkles size={13} className="mr-2" /> Built for focused tuition
             teams
           </div>
-          <h1 className="max-w-3xl text-5xl font-black leading-[1.02] tracking-[-.05em] sm:text-7xl">
-            Teaching moves fast.
-            <br />
-            <span className="text-neon">ClassFlow keeps up.</span>
+          <h1 className="max-w-3xl text-4xl font-black leading-[1.04] sm:text-6xl sm:leading-[1.02] 2xl:text-7xl">
+            <span className="block">Teaching moves</span>
+            <span className="block">fast.</span>
+            <span className="block text-neon">ClassFlow keeps</span>
+            <span className="block text-neon">up.</span>
           </h1>
           <p className="mt-7 max-w-xl text-lg leading-8 text-white/55">
             A practical learning platform for tuition classes that brings
             teachers, students and administrators into one calm, accountable
             workspace.
           </p>
-          <div className="mt-9 flex flex-wrap gap-3">
+          <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <Link className="btn px-6 py-3" href="/login">
               Enter your workspace <ArrowRight size={17} />
             </Link>
