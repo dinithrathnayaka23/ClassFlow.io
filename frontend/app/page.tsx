@@ -21,12 +21,12 @@ const features = [
   {
     icon: Layers3,
     title: "One learning workspace",
-    text: "Courses, notes, live links, assignments and timed quizzes stay connected.",
+    text: "Courses, notes, live links, assignments and timed quizzes make you stay connected.",
   },
   {
     icon: MessageSquareText,
     title: "Keep the class talking",
-    text: "Persisted direct chat and course forums support learning outside class.",
+    text: "Persisted direct chat and course forums support you to learn outside the class.",
   },
   {
     icon: Bot,
@@ -40,33 +40,33 @@ const featureCardClass = "panel landing-gradient-card";
 const teacherDetails = [
   {
     label: "Name",
-    value: "Mr. Kavindu Jayasinghe",
+    value: "Dinith Rathnayaka",
   },
   {
     label: "Education background",
     value:
-      "BSc in Mathematics, University of Colombo, with a postgraduate diploma in education.",
+      "BSc.hons in.(Information Technology and Management), University of Moratuwa(UG)",
   },
   {
     label: "Teaching experience",
     value:
-      "8+ years guiding O/L and A/L students through structured lessons, weekly practice, and exam-focused feedback.",
+      "2+ years of guiding experience for Grade 6-11  students to get through structured lessons, weekly practice, and exam-focused papers in Mathematics,Science and ICT.",
   },
 ];
 
 const socialLinks = [
   {
-    href: "https://www.linkedin.com/in/your-profile",
+    href: "https://www.linkedin.com/in/dinithrathnayaka/",
     icon: Linkedin,
     label: "LinkedIn",
   },
   {
-    href: "https://www.facebook.com/your-profile",
+    href: "https://www.facebook.com/dinith.rathnayaka.2025",
     icon: Facebook,
     label: "Facebook",
   },
   {
-    href: "https://www.instagram.com/your-profile",
+    href: "https://www.instagram.com/dinithrathanayaka23/?hl=en",
     icon: Instagram,
     label: "Instagram",
   },
@@ -90,8 +90,7 @@ export default function Home() {
       <section className="mx-auto grid min-h-[72vh] max-w-7xl items-center gap-14 px-6 py-16 lg:grid-cols-[1.05fr_.95fr]">
         <div>
           <div className="badge mb-6">
-            <Sparkles size={13} className="mr-2" /> Built for focused tuition
-            teams
+            <Sparkles size={13} className="mr-2" /> Built for the New Era of Education
           </div>
           <h1 className="max-w-3xl text-4xl font-black leading-[1.04] sm:text-6xl sm:leading-[1.02] 2xl:text-7xl">
             <span className="block">Teaching moves</span>
@@ -100,7 +99,7 @@ export default function Home() {
             <span className="block text-neon">up.</span>
           </h1>
           <p className="mt-7 max-w-xl text-lg leading-8 text-white/55">
-            A practical learning platform for tuition classes that brings
+            A enhanced learning platform for that brings
             teachers, students and administrators into one calm, accountable
             workspace.
           </p>
@@ -202,14 +201,14 @@ export default function Home() {
             className="aspect-[4/5] h-auto w-full object-cover"
             height={1536}
             sizes="(min-width: 1024px) 420px, 100vw"
-            src="/images/sample-teacher.png"
+            src="/images/dinith.png"
             width={1024}
           />
           <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-ink via-ink/70 to-transparent p-5">
             <p className="text-xs font-bold uppercase tracking-[.25em] text-neon">
-              Lead teacher
+              Passionate Builder
             </p>
-            <p className="mt-1 text-xl font-black">Mathematics specialist</p>
+            <p className="mt-1 text-xl font-black">Software Developer</p>
           </div>
         </div>
 
