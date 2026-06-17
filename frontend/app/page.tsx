@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Brand } from "@/components/Brand";
 import { LiquidGlassCard } from "@/components/ui/liquid-glass";
+import { VantaBirdsBackground } from "@/components/VantaBirdsBackground";
 
 const features = [
   {
@@ -74,20 +75,22 @@ const socialLinks = [
 
 export default function Home() {
   return (
-    <main className="min-h-screen overflow-hidden">
-      <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6">
-        <Brand />
-        <div className="flex items-center gap-3">
-          <Link className="btn-secondary max-[520px]:hidden" href="/login">
-            Sign in
-          </Link>
-          <Link className="btn hidden sm:inline-flex" href="/login">
-            Open ClassFlow <ArrowRight size={16} />
-          </Link>
-        </div>
-      </nav>
+    <main className="relative isolate min-h-screen overflow-hidden bg-ink">
+      <VantaBirdsBackground />
+      <div className="relative z-10">
+        <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-6">
+          <Brand />
+          <div className="flex items-center gap-3">
+            <Link className="btn-secondary max-[520px]:hidden" href="/login">
+              Sign in
+            </Link>
+            <Link className="btn hidden sm:inline-flex" href="/login">
+              Open ClassFlow <ArrowRight size={16} />
+            </Link>
+          </div>
+        </nav>
 
-      <section className="mx-auto grid min-h-[72vh] max-w-7xl items-center gap-14 px-6 py-16 lg:grid-cols-[1.05fr_.95fr]">
+        <section className="mx-auto grid min-h-[72vh] max-w-7xl items-center gap-14 px-6 py-16 lg:grid-cols-[1.05fr_.95fr]">
         <div>
           <div className="badge mb-6">
             <Sparkles size={13} className="mr-2" /> Built for the New Era of Education
@@ -189,12 +192,12 @@ export default function Home() {
             </div>
           </div>
         </LiquidGlassCard>
-      </section>
+        </section>
 
-      <section
-        id="teacher"
-        className="mx-auto grid max-w-7xl items-center gap-10 px-6 py-20 lg:grid-cols-[.9fr_1.1fr]"
-      >
+        <section
+          id="teacher"
+          className="mx-auto grid max-w-7xl items-center gap-10 px-6 py-20 lg:grid-cols-[.9fr_1.1fr]"
+        >
         <div className="relative mx-auto w-full max-w-md overflow-hidden rounded-2xl border border-neon/20 bg-panel">
           <Image
             alt="Sample teacher portrait"
@@ -219,11 +222,6 @@ export default function Home() {
           <h2 className="mt-3 max-w-2xl text-3xl font-black sm:text-5xl">
             Learn from a teacher who keeps every student visible.
           </h2>
-          <p className="mt-5 max-w-2xl leading-8 text-white/50">
-            This sample profile can be replaced with your real details and
-            photo later. It gives the landing page a personal, trustworthy
-            introduction before students enter the workspace.
-          </p>
 
           <div className="mt-8 grid gap-3">
             {teacherDetails.map((item) => (
@@ -252,9 +250,9 @@ export default function Home() {
             </span>
           </div>
         </div>
-      </section>
+        </section>
 
-      <section id="features" className="mx-auto max-w-7xl px-6 py-24">
+        <section id="features" className="mx-auto max-w-7xl px-6 py-24">
         <p className="text-xs font-bold uppercase tracking-[.25em] text-neon">
           A complete working loop
         </p>
@@ -270,9 +268,9 @@ export default function Home() {
             </div>
           ))}
         </div>
-      </section>
+        </section>
 
-      <footer className="border-t border-line bg-ink/55">
+        <footer className="border-t border-line bg-ink/55">
         <div className="mx-auto flex max-w-7xl flex-col gap-8 px-6 py-10 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <Brand />
@@ -300,9 +298,10 @@ export default function Home() {
         </div>
         <div className="mx-auto flex max-w-7xl flex-col gap-2 border-t border-line px-6 py-5 text-xs text-white/35 sm:flex-row sm:items-center sm:justify-between">
           <p>ClassFlow 2026. All rights reserved.</p>
-          <p>Designed for focused tuition learning.</p>
+          <p>Designed and Developed by Dinith Rathnayaka.</p>
         </div>
-      </footer>
+        </footer>
+      </div>
     </main>
   );
 }
