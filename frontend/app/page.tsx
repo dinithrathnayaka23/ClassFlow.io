@@ -137,56 +137,61 @@ export default function Home() {
           shadowIntensity="none"
         >
           <div className="relative z-30">
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-white/35">
-                  Monday overview
-                </p>
-                <h2 className="mt-1 text-xl font-black">Good morning, Amaya</h2>
-              </div>
-              <span className="grid h-10 w-10 place-items-center rounded-full bg-neon font-black text-ink">
-                AS
-              </span>
+            <div className="mb-6">
+              <p className="text-xs font-bold uppercase tracking-widest text-white/35">
+                Platform overview
+              </p>
             </div>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
               {[
-                ["02", "Classes today"],
-                ["01", "Due soon"],
-                ["84%", "Quiz average"],
+                ["500+", "Active students"],
+                ["25+", "Courses running"],
+                ["98%", "Uptime"],
               ].map(([value, label]) => (
                 <div className="card" key={label}>
-                  <p className="text-2xl font-black text-neon">{value}</p>
+                  <p className="text-lg sm:text-2xl font-black text-neon">{value}</p>
                   <p className="mt-1 text-xs text-white/45">{label}</p>
                 </div>
               ))}
             </div>
             <div className="mt-4 card">
               <p className="text-xs font-bold uppercase tracking-widest text-white/35">
-                Up next
+                Why ClassFlow
               </p>
-              <div className="mt-4 flex items-center justify-between gap-4">
-                <div>
-                  <p className="font-bold">A/L Mathematics</p>
-                  <p className="mt-1 text-sm text-white/45">
-                    Functions: paper discussion
-                  </p>
+              <div className="mt-4 grid gap-2 sm:gap-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 size={18} className="text-neon flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-sm sm:text-base">Role-based workspace</p>
+                    <p className="text-xs sm:text-sm text-white/45">
+                      Tailored for teachers, students and admins
+                    </p>
+                  </div>
                 </div>
-                <span className="badge">4:30 PM</span>
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 size={18} className="text-neon flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-sm sm:text-base">Real submissions</p>
+                    <p className="text-xs sm:text-sm text-white/45">
+                      Track progress and provide feedback instantly
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 grid gap-3 grid-cols-1 sm:grid-cols-2">
               <div className="card">
-                <ShieldCheck className="text-neon" size={22} />
-                <p className="mt-4 font-bold">Feedback received</p>
-                <p className="mt-1 text-sm text-white/45">
-                  Functions practice paper · 82/100
+                <Layers3 className="text-neon" size={22} />
+                <p className="mt-3 font-bold text-sm sm:text-base">One workspace</p>
+                <p className="mt-1 text-xs text-white/45">
+                  All tools you need in one place
                 </p>
               </div>
               <div className="card">
                 <Bot className="text-neon" size={22} />
-                <p className="mt-4 font-bold">Need a hand?</p>
-                <p className="mt-1 text-sm text-white/45">
-                  Ask ClassFlow where to find notes.
+                <p className="mt-3 font-bold text-sm sm:text-base">AI assistance</p>
+                <p className="mt-1 text-xs text-white/45">
+                  Get help anytime you need it
                 </p>
               </div>
             </div>
