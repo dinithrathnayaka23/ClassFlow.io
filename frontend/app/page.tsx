@@ -84,8 +84,8 @@ export default function Home() {
             <Link className="btn-secondary max-[520px]:hidden" href="/login">
               Sign in
             </Link>
-            <Link className="btn hidden sm:inline-flex" href="/login">
-              Open ClassFlow <ArrowRight size={16} />
+            <Link className="btn hidden sm:inline-flex" href="/signup">
+              Get started <ArrowRight size={16} />
             </Link>
           </div>
         </nav>
@@ -107,12 +107,12 @@ export default function Home() {
             workspace.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <Link className="btn px-6 py-3" href="/login">
-              Enter your workspace <ArrowRight size={17} />
+            <Link className="btn px-6 py-3" href="/signup">
+              Create account <ArrowRight size={17} />
             </Link>
-            <a className="btn-secondary px-6 py-3" href="#features">
-              Explore features
-            </a>
+            <Link className="btn-secondary px-6 py-3" href="/login">
+              Sign in
+            </Link>
           </div>
           <div className="mt-9 flex flex-wrap gap-x-6 gap-y-2 text-sm text-white/45">
             {[

@@ -1,6 +1,8 @@
 services:
   postgres:
     image: postgres:16-alpine
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-classflow}
       POSTGRES_USER: ${POSTGRES_USER:-classflow}
@@ -16,6 +18,8 @@ services:
 
   redis:
     image: redis:7-alpine
+    ports:
+      - "6379:6379"
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data

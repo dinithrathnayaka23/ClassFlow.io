@@ -3,13 +3,12 @@
 import { FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, LockKeyhole } from "lucide-react";
+import { ArrowLeft, ArrowRight, LockKeyhole, CheckCircle2 } from "lucide-react";
 import { Brand } from "@/components/Brand";
 import { api, User } from "@/lib/api";
 import { Notice } from "@/components/ui";
 
 const demos = [
-  ["Admin", "admin@classflow.com", "Admin123!"],
   ["Teacher", "teacher@classflow.com", "Teacher123!"],
   ["Student", "student@classflow.com", "Student123!"],
 ];
@@ -17,10 +16,11 @@ const demos = [
 function LoginPage() {
   const router = useRouter();
   const search = useSearchParams();
-  const [email, setEmail] = useState("teacher@classflow.com");
-  const [password, setPassword] = useState("Teacher123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const registered = search.get("registered") === "true";
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -64,6 +64,17 @@ function LoginPage() {
               Sign in to continue to your ClassFlow workspace.
             </p>
           </div>
+          
+          {registered && (
+            <div className="mb-6 rounded-lg border border-green-500/30 bg-green-500/10 p-4 flex gap-3">
+              <CheckCircle2 size={20} className="text-green-400 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-sm text-green-400">Account created successfully!</p>
+                <p className="text-xs text-green-400/70 mt-1">Please sign in with your credentials.</p>
+              </div>
+            </div>
+          )}
+          
           <Notice error={error} />
           <form className="space-y-5" onSubmit={submit}>
             <label>
@@ -71,6 +82,7 @@ function LoginPage() {
               <input
                 className="input"
                 type="email"
+                placeholder="your@email.com"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -81,6 +93,7 @@ function LoginPage() {
               <input
                 className="input"
                 type="password"
+                placeholder="Your password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -90,21 +103,42 @@ function LoginPage() {
               {loading ? "Signing in..." : "Sign in"} <ArrowRight size={16} />
             </button>
           </form>
-          <div className="mt-8 border-t border-line pt-6">
-            <p className="label">Demo accounts</p>
-            <div className="grid grid-cols-3 gap-2">
-              {demos.map(([role, mail, pass]) => (
+          
+          <div className="mt-8 border-t border-line pt-6 space-y-6">
+            <div>
+              <p className="label mb-3">Demo accounts (for testing)</p>
+              <div className="grid grid-cols-2 gap-2">
+                {demos.map(([role, mail, pass]) => (
+                  <button
+                    key={role}
+                    className="btn-secondary px-3 py-2 text-xs"
+                    onClick={() => {
+                      setEmail(mail);
+                      setPassword(pass);
+                    }}
+                  >
+                    {role} Demo
+                  </button>
+                ))}
                 <button
-                  key={role}
-                  className="btn-secondary px-2 text-xs"
+                  className="btn-secondary px-3 py-2 text-xs col-span-2"
                   onClick={() => {
-                    setEmail(mail);
-                    setPassword(pass);
+                    setEmail("admin@classflow.com");
+                    setPassword("Admin123!");
                   }}
                 >
-                  {role}
+                  Admin Demo
                 </button>
-              ))}
+              </div>
+            </div>
+            
+            <div className="border-t border-line pt-6">
+              <p className="text-sm text-white/60">
+                Don't have an account?{" "}
+                <Link href="/signup" className="font-semibold text-neon hover:text-white transition">
+                  Create one
+                </Link>
+              </p>
             </div>
           </div>
         </div>
