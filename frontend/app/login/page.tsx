@@ -76,7 +76,7 @@ function LoginPage() {
           )}
           
           <Notice error={error} />
-          <form className="space-y-5" onSubmit={submit}>
+          <form className="space-y-3" onSubmit={submit}>
             <label>
               <span className="label">Email address</span>
               <input

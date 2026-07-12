@@ -86,9 +86,9 @@ export default function SignupPage() {
 
           <Notice error={error} />
 
-          <form className="space-y-5" onSubmit={submit}>
+<form className="space-y-5" onSubmit={submit}>
             <label>
-              <span className="label">Full name</span>
+<span className="label">Full name</span>
               <input
                 className="input"
                 type="text"
