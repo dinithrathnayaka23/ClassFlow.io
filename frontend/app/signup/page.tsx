@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, UserPlus, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, UserPlus, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { Brand } from "@/components/Brand";
 import { api } from "@/lib/api";
 import { Notice } from "@/components/ui";
@@ -17,6 +17,8 @@ export default function SignupPage() {
   const [role, setRole] = useState("STUDENT");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -141,14 +143,24 @@ export default function SignupPage() {
 
             <label>
               <span className="label">Password</span>
-              <input
-                className="input"
-                type="password"
-                placeholder="At least 8 characters"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  className="input pr-10"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="At least 8 characters"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  onClick={() => setShowPassword((s) => !s)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-white/50 hover:text-neon"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
               <p className="mt-2 text-xs text-white/45">
                 Use a strong password with uppercase, lowercase, numbers and symbols.
               </p>
@@ -156,14 +168,28 @@ export default function SignupPage() {
 
             <label>
               <span className="label">Confirm password</span>
-              <input
-                className="input"
-                type="password"
-                placeholder="Confirm your password"
-                required
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  className="input pr-10"
+                  type={showConfirmPassword ? "text" : "password"}
+                  placeholder="Confirm your password"
+                  required
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                  onClick={() => setShowConfirmPassword((s) => !s)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-white/50 hover:text-neon"
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff size={18} />
+                  ) : (
+                    <Eye size={18} />
+                  )}
+                </button>
+              </div>
             </label>
 
             <button className="btn w-full py-3" disabled={loading}>

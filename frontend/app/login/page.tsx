@@ -3,7 +3,7 @@
 import { FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, LockKeyhole, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, LockKeyhole, CheckCircle2, Eye, EyeOff } from "lucide-react";
 import { Brand } from "@/components/Brand";
 import { api, User } from "@/lib/api";
 import { Notice } from "@/components/ui";
@@ -18,6 +18,7 @@ function LoginPage() {
   const search = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const registered = search.get("registered") === "true";
@@ -90,14 +91,24 @@ function LoginPage() {
             </label>
             <label>
               <span className="label">Password</span>
-              <input
-                className="input"
-                type="password"
-                placeholder="Your password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <div className="relative">
+                <input
+                  className="input pr-10"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Your password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  onClick={() => setShowPassword((s) => !s)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-white/50 hover:text-neon"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </label>
             <button className="btn w-full py-3" disabled={loading}>
               {loading ? "Signing in..." : "Sign in"} <ArrowRight size={16} />
