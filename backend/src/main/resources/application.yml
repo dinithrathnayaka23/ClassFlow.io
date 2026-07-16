@@ -2,7 +2,7 @@ spring:
   application:
     name: classflow-api
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/classflow}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/classflow?sslmode=disable}
     username: ${DB_USER:classflow}
     password: ${DB_PASSWORD:classflow}
   flyway:

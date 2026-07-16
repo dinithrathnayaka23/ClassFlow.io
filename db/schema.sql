@@ -1,3 +1,6 @@
+-- Run this in pgAdmin4 to create the schema locally (without Docker).
+-- This file is intentionally independent from Flyway's V1__initial_schema.sql.
+
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
     email VARCHAR(190) NOT NULL UNIQUE,
@@ -109,6 +112,7 @@ CREATE TABLE assignments (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX idx_assignments_course ON assignments(course_id);
+
 CREATE TABLE assignment_submissions (
     id BIGSERIAL PRIMARY KEY,
     assignment_id BIGINT NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
@@ -130,6 +134,7 @@ CREATE TABLE forum_topics (
     created_by BIGINT NOT NULL REFERENCES users(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
 CREATE TABLE forum_posts (
     id BIGSERIAL PRIMARY KEY,
     topic_id BIGINT NOT NULL REFERENCES forum_topics(id) ON DELETE CASCADE,
