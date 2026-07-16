@@ -132,7 +132,7 @@ export function AppShell({
           <span className="grid h-9 w-9 place-items-center rounded-full bg-neon/15 text-xs font-black text-neon">
             {user?.fullName
               .split(" ")
-              .map((v) => v[0])
+              .map((v: string) => v[0])
               .slice(0, 2)
               .join("") || ".."}
           </span>
