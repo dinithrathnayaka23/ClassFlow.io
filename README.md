@@ -39,20 +39,11 @@ The project is a modular monolith: one Spring Boot API with clear domain package
 | Frontend | Next.js 15, TypeScript, Tailwind CSS |
 | Backend | Spring Boot 3, Spring Security, Spring JDBC, WebSocket/STOMP |
 | Data | PostgreSQL 16, Flyway migrations |
-| Cache-ready infrastructure | Redis 7 |
 | Auth | Signed JWT in HTTP-only cookie, BCrypt passwords, role checks |
-| Deployment | Docker, Docker Compose, Nginx |
 
-## Quick Start With Docker
+## Quick Start (Local)
 
-Requirements: Docker Engine with Docker Compose.
-
-```bash
-cp .env.example .env
-docker compose up --build
-```
-
-Open `http://localhost`. The first backend startup runs Flyway migrations and creates demo data.
+Start PostgreSQL, then run the Flyway schema/migrations via the backend (Flyway runs on startup by default).
 
 | Role | Email | Password |
 | --- | --- | --- |
@@ -62,37 +53,32 @@ Open `http://localhost`. The first backend startup runs Flyway migrations and cr
 
 Change every seeded password and the `.env` secrets before exposing the application publicly.
 
-## Local Development
+## Local Development (No Docker)
 
-Start PostgreSQL and Redis:
+1) Create and initialize the database (schema):
+- Create a PostgreSQL database (default: `classflow`)
+- Execute: `db/schema.sql`
 
-```bash
-docker compose up postgres redis
-```
-
-Run the API (Java 21 and Maven required):
-
+2) Run the API (Java 21 and Maven required):
 ```bash
 cd backend
 mvn spring-boot:run
 ```
 
-Run the web client (Node.js 22 recommended):
-
+3) Run the web client (Node.js 22 recommended):
 ```bash
 cd frontend
 npm install
 NEXT_PUBLIC_API_URL=http://localhost:8080/api npm run dev
 ```
 
-On Windows PowerShell, set the frontend API variable with:
-
+On Windows PowerShell:
 ```powershell
 $env:NEXT_PUBLIC_API_URL="http://localhost:8080/api"
 npm run dev
 ```
 
-The local API uses `classflow/classflow` for the database by default. All backend values can be overridden with environment variables from `backend/src/main/resources/application.yml`.
+The backend defaults to `classflow/classflow` for the database. Override any backend values via environment variables documented in `backend/src/main/resources/application.yml`.
 
 ## Repository Structure
 
@@ -137,17 +123,17 @@ All endpoints except login and health require authentication. Resource access is
 - Set `SECURE_COOKIES=true`, a strong `JWT_SECRET`, and HTTPS on a public deployment.
 - Uploaded files are stored outside the database in the configured upload directory. The `FileStorage` boundary can later be replaced by S3 or Cloudflare R2.
 
-## VPS Deployment
+## Deployment Notes
 
-1. Point the domain's DNS record to the VPS.
-2. Set strong values in `.env`, including `APP_ORIGIN=https://your-domain.example` and `SECURE_COOKIES=true`.
-3. Put an HTTPS-capable edge proxy or certificate-enabled Nginx configuration in front of this stack.
-4. Run `docker compose up -d --build`.
-5. Back up the `postgres_data` and `uploads_data` volumes.
+This MVP is designed to run with:
+- Next.js frontend
+- Spring Boot backend (Flyway migrations on startup)
+- PostgreSQL database
+
+If you deploy behind a reverse proxy (recommended), ensure uploads work at the configured `app.upload-dir` and CORS/secure cookie settings match your domain.
 
 ## MVP Boundaries
 
 - The AI module currently provides deterministic platform guidance and persists Q&A logs. `AiController` is isolated so a model provider can replace the response strategy.
 - The included STOMP endpoint persists and broadcasts messages; the current web UI uses REST polling as a resilient MVP fallback.
-- Redis is provisioned for future targeted caching, but the small initial workload does not justify caching mutable domain lists yet.
 - Course enrollment is exposed as a protected API; a dedicated enrollment picker is a natural next UI enhancement.
