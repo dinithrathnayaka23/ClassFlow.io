@@ -11,13 +11,31 @@ import { Chat } from "@/components/workspace/Chat";
 import { AiHelp } from "@/components/workspace/AiHelp";
 import { Profile } from "@/components/workspace/Profile";
 
-export function Workspace({ role, section }: { role: string; section: string[] }) {
+export function Workspace({
+  role,
+  section,
+}: {
+  role: string;
+  section: string[];
+}) {
   const page = section[0] || "dashboard";
   if (page === "dashboard") return <Dashboard role={role} />;
-  if (page === "courses") return <Courses role={role} courseId={section[1] ? Number(section[1]) : undefined} />;
-  if (["users", "teachers", "students"].includes(page)) return <Users filter={page === "users" ? undefined : page.slice(0, -1).toUpperCase()} />;
+  if (page === "courses")
+    return (
+      <Courses
+        role={role}
+        courseId={section[1] ? Number(section[1]) : undefined}
+      />
+    );
+  if (["users", "teachers", "students"].includes(page))
+    return (
+      <Users
+        filter={page === "users" ? undefined : page.slice(0, -1).toUpperCase()}
+      />
+    );
   if (page === "materials") return <Materials role={role} />;
-  if (page === "assignments" || page === "submissions") return <Assignments role={role} submissionsOnly={page === "submissions"} />;
+  if (page === "assignments" || page === "submissions")
+    return <Assignments role={role} submissionsOnly={page === "submissions"} />;
   if (page === "quizzes") return <Quizzes role={role} />;
   if (page === "forums") return <Forums role={role} />;
   if (page === "chat") return <Chat />;

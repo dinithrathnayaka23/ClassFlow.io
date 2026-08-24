@@ -1,19 +1,40 @@
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
+function isJsonResponse(response: Response) {
+  const contentType = response.headers.get("content-type") || "";
+  return contentType.toLowerCase().includes("application/json") || contentType.toLowerCase().includes("+json");
+}
+
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers = new Headers(options.headers);
   if (options.body && !(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
+
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
     headers,
     credentials: "include"
   });
-  if (!response.ok) {
-    const payload = await response.json().catch(() => ({ message: "Request failed" }));
-    throw new Error(payload.message || `Request failed (${response.status})`);
-  }
+
   if (response.status === 204) return undefined as T;
-  return response.json();
+
+  if (!response.ok) {
+    if (isJsonResponse(response)) {
+      const payload = await response.json().catch(() => ({ message: "Request failed" }));
+      throw new Error(payload?.message || `Request failed (${response.status})`);
+    }
+
+    const text = (await response.text()).trim();
+    const snippet = text.length > 400 ? `${text.slice(0, 400)}…` : text;
+    throw new Error(`Request failed (${response.status}). Response: ${snippet}`);
+  }
+
+  if (isJsonResponse(response)) {
+    return response.json();
+  }
+
+  const text = (await response.text()).trim();
+  const snippet = text.length > 400 ? `${text.slice(0, 400)}…` : text;
+  throw new Error(`Expected JSON but received non-JSON response. Response: ${snippet}`);
 }
 
 export type User = { id: number; email: string; fullName: string; role: "ADMIN" | "TEACHER" | "STUDENT" };

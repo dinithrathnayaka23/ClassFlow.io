@@ -6,22 +6,289 @@ import { api } from "@/lib/api";
 import { Card, Empty, Notice, SectionTitle } from "@/components/ui";
 import { CoursePicker, Field, Modal, formatDate, useCourses } from "./shared";
 
-type Quiz = { id: number; title: string; description: string; durationMinutes: number; startsAt: string; endsAt: string; questionCount: number; score?: number; maxScore?: number; submittedAt?: string };
-type QuizDetail = { quiz: Quiz; questions: { id: number; prompt: string; points: number; options: { id: number; text: string }[] }[] };
+type Quiz = {
+  id: number;
+  title: string;
+  description: string;
+  durationMinutes: number;
+  startsAt: string;
+  endsAt: string;
+  questionCount: number;
+  score?: number;
+  maxScore?: number;
+  submittedAt?: string;
+};
+type QuizDetail = {
+  quiz: Quiz;
+  questions: {
+    id: number;
+    prompt: string;
+    points: number;
+    options: { id: number; text: string }[];
+  }[];
+};
 
 export function Quizzes({ role }: { role: string }) {
-  const { courses } = useCourses(); const [courseId, setCourseId] = useState<number>(); const [items, setItems] = useState<Quiz[]>([]);
-  const [open, setOpen] = useState(false); const [error, setError] = useState(""); const [active, setActive] = useState<QuizDetail>(); const [answers, setAnswers] = useState<Record<number, number>>({}); const [startedAt, setStartedAt] = useState<string>();
-  useEffect(() => { if (!courseId && courses[0]) setCourseId(courses[0].id); }, [courses, courseId]);
-  const load = () => courseId && api<Quiz[]>(`/quizzes?courseId=${courseId}`).then(setItems);
-  useEffect(() => { load(); setActive(undefined); }, [courseId]);
-  const remaining = useMemo(() => active && startedAt ? new Date(startedAt).getTime() + active.quiz.durationMinutes * 60000 - Date.now() : 0, [active, startedAt]);
-  async function create(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setError(""); const v = Object.fromEntries(new FormData(event.currentTarget)); const payload = { courseId, title: v.title, description: v.description, durationMinutes: Number(v.durationMinutes), startsAt: new Date(String(v.startsAt)).toISOString(), endsAt: new Date(String(v.endsAt)).toISOString(), questions: [{ prompt: v.prompt, points: 1, options: [{ text: v.optionA, correct: true }, { text: v.optionB, correct: false }, { text: v.optionC, correct: false }]}] }; try { await api("/quizzes", { method: "POST", body: JSON.stringify(payload) }); setOpen(false); load(); } catch (e) { setError(e instanceof Error ? e.message : "Could not create quiz"); } }
-  async function start(quiz: Quiz) { const attempt = await api<{ startedAt: string }>(`/quizzes/${quiz.id}/start`, { method: "POST" }); setStartedAt(attempt.startedAt); setActive(await api(`/quizzes/${quiz.id}`)); }
-  async function submit() { if (!active) return; await api(`/quizzes/${active.quiz.id}/submit`, { method: "POST", body: JSON.stringify({ answers: Object.entries(answers).map(([questionId, optionId]) => ({ questionId: Number(questionId), optionId })) }) }); setActive(undefined); load(); }
-  return <><SectionTitle eyebrow="Timed assessments" title="Quizzes" action={role !== "student" ? <button className="btn" onClick={() => setOpen(true)}><Plus size={16} />Create quiz</button> : undefined} /><div className="mb-6"><CoursePicker courses={courses} value={courseId} onChange={setCourseId} /></div>
-    {active ? <section className="panel p-6"><div className="mb-6 flex flex-wrap items-start justify-between gap-4"><div><button className="mb-3 text-sm text-white/40" onClick={() => setActive(undefined)}>← Back to quizzes</button><h2 className="text-2xl font-black">{active.quiz.title}</h2></div><span className="badge"><Clock3 size={13} className="mr-2" />{Math.max(0, Math.ceil(remaining / 60000))} min remaining</span></div><div className="space-y-5">{active.questions.map((question, index) => <Card key={question.id}><p className="font-bold">{index + 1}. {question.prompt}</p><div className="mt-4 space-y-2">{question.options.map(option => <label className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm ${answers[question.id] === option.id ? "border-neon bg-neon/10" : "border-line"}`} key={option.id}><input type="radio" name={`q-${question.id}`} onChange={() => setAnswers(old => ({ ...old, [question.id]: option.id }))} />{option.text}</label>)}</div></Card>)}</div><button className="btn mt-6" disabled={Object.keys(answers).length < active.questions.length} onClick={submit}><CheckCircle2 size={16} />Submit quiz</button></section>
-    : items.length ? <div className="grid gap-4 md:grid-cols-2">{items.map(quiz => <Card key={quiz.id}><div className="flex items-center justify-between"><span className="badge">{quiz.questionCount} questions</span><span className="text-xs text-white/35">{quiz.durationMinutes} min</span></div><h2 className="mt-5 text-lg font-black">{quiz.title}</h2><p className="mt-2 text-sm text-white/40">{quiz.description}</p><p className="mt-5 text-xs text-white/30">{formatDate(quiz.startsAt)} → {formatDate(quiz.endsAt)}</p>{quiz.submittedAt ? <p className="mt-5 rounded-lg bg-neon/10 p-3 font-bold text-neon">Score: {quiz.score}/{quiz.maxScore}</p> : role === "student" ? <button className="btn mt-5" onClick={() => start(quiz)}><Play size={15} />Start quiz</button> : null}</Card>)}</div> : <Empty title="No quizzes yet" text="Available quizzes for this course will show here." />}
-    <Modal title="Create an MCQ quiz" open={open} onClose={() => setOpen(false)}><Notice error={error} /><form className="space-y-4" onSubmit={create}><Field label="Title"><input className="input" name="title" required /></Field><Field label="Description"><textarea className="input" name="description" /></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="Starts"><input className="input" name="startsAt" type="datetime-local" required /></Field><Field label="Ends"><input className="input" name="endsAt" type="datetime-local" required /></Field></div><Field label="Duration in minutes"><input className="input" name="durationMinutes" type="number" min="1" defaultValue="15" required /></Field><div className="rounded-xl border border-line p-4"><p className="label">First MCQ question</p><input className="input mb-3" name="prompt" placeholder="Question" required /><input className="input mb-2" name="optionA" placeholder="Correct option" required /><input className="input mb-2" name="optionB" placeholder="Alternative option" required /><input className="input" name="optionC" placeholder="Alternative option" required /></div><button className="btn w-full">Create quiz</button></form></Modal>
-  </>;
+  const { courses } = useCourses();
+  const [courseId, setCourseId] = useState<number>();
+  const [items, setItems] = useState<Quiz[]>([]);
+  const [open, setOpen] = useState(false);
+  const [error, setError] = useState("");
+  const [active, setActive] = useState<QuizDetail>();
+  const [answers, setAnswers] = useState<Record<number, number>>({});
+  const [startedAt, setStartedAt] = useState<string>();
+  useEffect(() => {
+    if (!courseId && courses[0]) setCourseId(courses[0].id);
+  }, [courses, courseId]);
+  const load = () =>
+    courseId && api<Quiz[]>(`/quizzes?courseId=${courseId}`).then(setItems);
+  useEffect(() => {
+    load();
+    setActive(undefined);
+  }, [courseId]);
+  const remaining = useMemo(
+    () =>
+      active && startedAt
+        ? new Date(startedAt).getTime() +
+          active.quiz.durationMinutes * 60000 -
+          Date.now()
+        : 0,
+    [active, startedAt],
+  );
+  async function create(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    const v = Object.fromEntries(new FormData(event.currentTarget));
+    const payload = {
+      courseId,
+      title: v.title,
+      description: v.description,
+      durationMinutes: Number(v.durationMinutes),
+      startsAt: new Date(String(v.startsAt)).toISOString(),
+      endsAt: new Date(String(v.endsAt)).toISOString(),
+      questions: [
+        {
+          prompt: v.prompt,
+          points: 1,
+          options: [
+            { text: v.optionA, correct: true },
+            { text: v.optionB, correct: false },
+            { text: v.optionC, correct: false },
+          ],
+        },
+      ],
+    };
+    try {
+      await api("/quizzes", { method: "POST", body: JSON.stringify(payload) });
+      setOpen(false);
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not create quiz");
+    }
+  }
+  async function start(quiz: Quiz) {
+    const attempt = await api<{ startedAt: string }>(
+      `/quizzes/${quiz.id}/start`,
+      { method: "POST" },
+    );
+    setStartedAt(attempt.startedAt);
+    setActive(await api(`/quizzes/${quiz.id}`));
+  }
+  async function submit() {
+    if (!active) return;
+    await api(`/quizzes/${active.quiz.id}/submit`, {
+      method: "POST",
+      body: JSON.stringify({
+        answers: Object.entries(answers).map(([questionId, optionId]) => ({
+          questionId: Number(questionId),
+          optionId,
+        })),
+      }),
+    });
+    setActive(undefined);
+    load();
+  }
+  return (
+    <>
+      <SectionTitle
+        eyebrow="Timed assessments"
+        title="Quizzes"
+        action={
+          role !== "student" ? (
+            <button className="btn" onClick={() => setOpen(true)}>
+              <Plus size={16} />
+              Create quiz
+            </button>
+          ) : undefined
+        }
+      />
+      <div className="mb-6">
+        <CoursePicker
+          courses={courses}
+          value={courseId}
+          onChange={setCourseId}
+        />
+      </div>
+      {active ? (
+        <section className="panel p-6">
+          <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <button
+                className="mb-3 text-sm text-white/40"
+                onClick={() => setActive(undefined)}
+              >
+                ← Back to quizzes
+              </button>
+              <h2 className="text-2xl font-black">{active.quiz.title}</h2>
+            </div>
+            <span className="badge">
+              <Clock3 size={13} className="mr-2" />
+              {Math.max(0, Math.ceil(remaining / 60000))} min remaining
+            </span>
+          </div>
+          <div className="space-y-5">
+            {active.questions.map((question, index) => (
+              <Card key={question.id}>
+                <p className="font-bold">
+                  {index + 1}. {question.prompt}
+                </p>
+                <div className="mt-4 space-y-2">
+                  {question.options.map((option) => (
+                    <label
+                      className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm ${answers[question.id] === option.id ? "border-neon bg-neon/10" : "border-line"}`}
+                      key={option.id}
+                    >
+                      <input
+                        type="radio"
+                        name={`q-${question.id}`}
+                        onChange={() =>
+                          setAnswers((old) => ({
+                            ...old,
+                            [question.id]: option.id,
+                          }))
+                        }
+                      />
+                      {option.text}
+                    </label>
+                  ))}
+                </div>
+              </Card>
+            ))}
+          </div>
+          <button
+            className="btn mt-6"
+            disabled={Object.keys(answers).length < active.questions.length}
+            onClick={submit}
+          >
+            <CheckCircle2 size={16} />
+            Submit quiz
+          </button>
+        </section>
+      ) : items.length ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          {items.map((quiz) => (
+            <Card key={quiz.id}>
+              <div className="flex items-center justify-between">
+                <span className="badge">{quiz.questionCount} questions</span>
+                <span className="text-xs text-white/35">
+                  {quiz.durationMinutes} min
+                </span>
+              </div>
+              <h2 className="mt-5 text-lg font-black">{quiz.title}</h2>
+              <p className="mt-2 text-sm text-white/40">{quiz.description}</p>
+              <p className="mt-5 text-xs text-white/30">
+                {formatDate(quiz.startsAt)} → {formatDate(quiz.endsAt)}
+              </p>
+              {quiz.submittedAt ? (
+                <p className="mt-5 rounded-lg bg-neon/10 p-3 font-bold text-neon">
+                  Score: {quiz.score}/{quiz.maxScore}
+                </p>
+              ) : role === "student" ? (
+                <button className="btn mt-5" onClick={() => start(quiz)}>
+                  <Play size={15} />
+                  Start quiz
+                </button>
+              ) : null}
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Empty
+          title="No quizzes yet"
+          text="Available quizzes for this course will show here."
+        />
+      )}
+      <Modal
+        title="Create an MCQ quiz"
+        open={open}
+        onClose={() => setOpen(false)}
+      >
+        <Notice error={error} />
+        <form className="space-y-4" onSubmit={create}>
+          <Field label="Title">
+            <input className="input" name="title" required />
+          </Field>
+          <Field label="Description">
+            <textarea className="input" name="description" />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Starts">
+              <input
+                className="input"
+                name="startsAt"
+                type="datetime-local"
+                required
+              />
+            </Field>
+            <Field label="Ends">
+              <input
+                className="input"
+                name="endsAt"
+                type="datetime-local"
+                required
+              />
+            </Field>
+          </div>
+          <Field label="Duration in minutes">
+            <input
+              className="input"
+              name="durationMinutes"
+              type="number"
+              min="1"
+              defaultValue="15"
+              required
+            />
+          </Field>
+          <div className="rounded-xl border border-line p-4">
+            <p className="label">First MCQ question</p>
+            <input
+              className="input mb-3"
+              name="prompt"
+              placeholder="Question"
+              required
+            />
+            <input
+              className="input mb-2"
+              name="optionA"
+              placeholder="Correct option"
+              required
+            />
+            <input
+              className="input mb-2"
+              name="optionB"
+              placeholder="Alternative option"
+              required
+            />
+            <input
+              className="input"
+              name="optionC"
+              placeholder="Alternative option"
+              required
+            />
+          </div>
+          <button className="btn w-full">Create quiz</button>
+        </form>
+      </Modal>
+    </>
+  );
 }
