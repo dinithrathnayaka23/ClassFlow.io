@@ -30,6 +30,8 @@ export function Forums({ role }: { role: string }) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
+  // Separate from the new-topic error so the two forms cannot show each other's messages.
+  const [replyError, setReplyError] = useState("");
   useEffect(() => {
     if (!courseId && courses[0]) setCourseId(courses[0].id);
   }, [courses, courseId]);
@@ -63,14 +65,23 @@ export function Forums({ role }: { role: string }) {
   async function reply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!active) return;
-    await api(`/forums/${active.id}/posts`, {
-      method: "POST",
-      body: JSON.stringify(
-        Object.fromEntries(new FormData(event.currentTarget)),
-      ),
-    });
-    setPosts(await api(`/forums/${active.id}/posts`));
-    event.currentTarget.reset();
+    // Hold the element itself: React clears currentTarget once the handler's
+    // synchronous phase ends, so it is null by the time the awaits below resolve.
+    const formElement = event.currentTarget;
+    const values = new FormData(formElement);
+    setReplyError("");
+    try {
+      await api(`/forums/${active.id}/posts`, {
+        method: "POST",
+        body: JSON.stringify(Object.fromEntries(values)),
+      });
+      setPosts(await api(`/forums/${active.id}/posts`));
+      formElement.reset();
+    } catch (e) {
+      setReplyError(
+        e instanceof Error ? e.message : "Could not post the reply",
+      );
+    }
   }
   return (
     <>
@@ -127,7 +138,10 @@ export function Forums({ role }: { role: string }) {
               </p>
             )}
           </div>
-          <form className="mt-5 flex gap-3" onSubmit={reply}>
+          <div className="mt-5">
+            <Notice error={replyError} />
+          </div>
+          <form className="flex gap-3" onSubmit={reply}>
             <input
               className="input"
               name="body"
