@@ -78,7 +78,7 @@ public class AuthController {
                     .param("name", fullName)
                     .param("role", role)
                     .query(Long.class).single();
-            return new UserView(id, email, fullName, role, null, null, true, null);
+            return new UserView(id, email, fullName, role, null, null, null, true, null);
         } catch (DuplicateKeyException duplicate) {
             // Two concurrent sign-ups for the same address: the unique index is the source of truth.
             throw new ApiException(HttpStatus.CONFLICT, "Email is already registered");
@@ -135,11 +135,13 @@ public class AuthController {
             String role,
             String phone,
             String bio,
+            String avatarUrl,
             boolean active,
             java.time.OffsetDateTime createdAt
     ) {
         static UserView from(UserPrincipal user) {
-            return new UserView(user.id(), user.email(), user.fullName(), user.role(), null, null, user.active(), null);
+            return new UserView(user.id(), user.email(), user.fullName(), user.role(), null, null,
+                    user.avatarUrl(), user.active(), null);
         }
     }
 }

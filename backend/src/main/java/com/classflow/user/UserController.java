@@ -1,6 +1,7 @@
 package com.classflow.user;
 
 import com.classflow.common.ApiException;
+import com.classflow.common.FileStorage;
 import com.classflow.common.PageResponse;
 import com.classflow.security.CurrentUser;
 import jakarta.validation.Valid;
@@ -9,24 +10,30 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.OffsetDateTime;
+import java.util.Locale;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
+    private static final long MAX_AVATAR_BYTES = 5L * 1024 * 1024;
+
     private final JdbcClient jdbc;
     private final PasswordEncoder passwords;
     private final CurrentUser currentUser;
+    private final FileStorage files;
 
-    public UserController(JdbcClient jdbc, PasswordEncoder passwords, CurrentUser currentUser) {
+    public UserController(JdbcClient jdbc, PasswordEncoder passwords, CurrentUser currentUser, FileStorage files) {
         this.jdbc = jdbc;
         this.passwords = passwords;
         this.currentUser = currentUser;
+        this.files = files;
     }
 
     @GetMapping
@@ -38,7 +45,7 @@ public class UserController {
         page = Math.max(page, 0);
         var filter = role == null ? "%" : role.toUpperCase();
         var items = jdbc.sql("""
-                SELECT id, email, full_name, role, phone, bio, active, created_at
+                SELECT id, email, full_name, role, phone, bio, avatar_url, active, created_at
                 FROM users WHERE role LIKE :role ORDER BY created_at DESC LIMIT :size OFFSET :offset
                 """).param("role", filter).param("size", size).param("offset", page * size)
                 .query(UserView.class).list();
@@ -78,6 +85,31 @@ public class UserController {
         return get(user.id());
     }
 
+    /** Replaces the signed-in user's profile picture. */
+    @PostMapping(value = "/me/avatar", consumes = "multipart/form-data")
+    public UserView uploadAvatar(@RequestPart MultipartFile file, Authentication authentication) {
+        var user = currentUser.require(authentication);
+        var type = file.getContentType();
+        if (type == null || !type.toLowerCase(Locale.ROOT).startsWith("image/")) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Choose an image file");
+        }
+        if (file.getSize() > MAX_AVATAR_BYTES) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Images must be 5 MB or smaller");
+        }
+        var stored = files.save(file, "avatars");
+        jdbc.sql("UPDATE users SET avatar_url=:url WHERE id=:id")
+                .param("url", stored.url()).param("id", user.id()).update();
+        return get(user.id());
+    }
+
+    @DeleteMapping("/me/avatar")
+    public UserView removeAvatar(Authentication authentication) {
+        var user = currentUser.require(authentication);
+        // The stored file is left in place; it is cheap and keeps this idempotent.
+        jdbc.sql("UPDATE users SET avatar_url=NULL WHERE id=:id").param("id", user.id()).update();
+        return get(user.id());
+    }
+
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasRole('ADMIN')")
     public UserView status(@PathVariable Long id, @RequestBody StatusRequest request) {
@@ -87,13 +119,13 @@ public class UserController {
 
     private UserView get(Long id) {
         return jdbc.sql("""
-                SELECT id, email, full_name, role, phone, bio, active, created_at FROM users WHERE id=:id
+                SELECT id, email, full_name, role, phone, bio, avatar_url, active, created_at FROM users WHERE id=:id
                 """).param("id", id).query(UserView.class).optional()
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
     }
 
     public record UserView(Long id, String email, String fullName, String role, String phone, String bio,
-                           boolean active, OffsetDateTime createdAt) {}
+                           String avatarUrl, boolean active, OffsetDateTime createdAt) {}
     public record CreateUser(@Email String email, @Size(min = 8) String password, @NotBlank String fullName,
                              @Pattern(regexp = "ADMIN|TEACHER|STUDENT") String role, String phone) {}
     public record UpdateProfile(@NotBlank String fullName, String phone, String bio) {}
