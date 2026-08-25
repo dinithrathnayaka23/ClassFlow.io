@@ -108,6 +108,7 @@ CREATE TABLE assignments (
     description TEXT NOT NULL DEFAULT '',
     deadline TIMESTAMPTZ NOT NULL,
     attachment_url TEXT,
+    attachment_name TEXT,
     created_by BIGINT NOT NULL REFERENCES users(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

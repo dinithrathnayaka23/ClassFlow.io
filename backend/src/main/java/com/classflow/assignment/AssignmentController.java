@@ -4,9 +4,8 @@ import com.classflow.common.ApiException;
 import com.classflow.common.CourseAccess;
 import com.classflow.common.FileStorage;
 import com.classflow.security.CurrentUser;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import java.time.OffsetDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -34,7 +33,7 @@ public class AssignmentController {
         var user = currentUser.require(authentication);
         access.requireView(courseId, user);
         return jdbc.sql("""
-                SELECT a.id, a.course_id, a.title, a.description, a.deadline, a.attachment_url, a.created_at,
+                SELECT a.id, a.course_id, a.title, a.description, a.deadline, a.attachment_url, a.attachment_name, a.created_at,
                        s.status AS submission_status, s.mark, s.feedback
                 FROM assignments a
                 LEFT JOIN assignment_submissions s ON s.assignment_id=a.id AND s.student_id=:user
@@ -42,17 +41,45 @@ public class AssignmentController {
                 """).param("course", courseId).param("user", user.id()).query(AssignmentView.class).list();
     }
 
-    @PostMapping
+    /**
+     * Briefs are uploaded files rather than external links, so this takes a multipart
+     * form. The file is optional: an assignment can be text-only.
+     */
+    @PostMapping(consumes = "multipart/form-data")
     @ResponseStatus(HttpStatus.CREATED)
-    public AssignmentView create(@Valid @RequestBody AssignmentRequest request, Authentication authentication) {
+    public AssignmentView create(@RequestParam Long courseId,
+                                 @RequestParam String title,
+                                 @RequestParam(required = false) String description,
+                                 @RequestParam String deadline,
+                                 @RequestPart(required = false) MultipartFile file,
+                                 Authentication authentication) {
         var user = currentUser.require(authentication);
-        access.requireManage(request.courseId(), user);
+        access.requireManage(courseId, user);
+        if (title == null || title.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Title is required");
+        }
+        OffsetDateTime due;
+        try {
+            due = OffsetDateTime.parse(deadline);
+        } catch (DateTimeParseException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "A valid deadline is required");
+        }
+
+        String url = null;
+        String name = null;
+        if (file != null && !file.isEmpty()) {
+            var stored = files.save(file, "assignments");
+            url = stored.url();
+            name = stored.name();
+        }
+
         var id = jdbc.sql("""
-                INSERT INTO assignments(course_id, title, description, deadline, attachment_url, created_by)
-                VALUES (:course, :title, :description, :deadline, :url, :user) RETURNING id
-                """).param("course", request.courseId()).param("title", request.title())
-                .param("description", request.description()).param("deadline", request.deadline())
-                .param("url", request.attachmentUrl()).param("user", user.id()).query(Long.class).single();
+                INSERT INTO assignments(course_id, title, description, deadline, attachment_url, attachment_name, created_by)
+                VALUES (:course, :title, :description, :deadline, :url, :name, :user) RETURNING id
+                """).param("course", courseId).param("title", title.trim())
+                .param("description", description == null ? "" : description)
+                .param("deadline", due).param("url", url).param("name", name)
+                .param("user", user.id()).query(Long.class).single();
         return get(id, user.id());
     }
 
@@ -104,7 +131,7 @@ public class AssignmentController {
 
     private AssignmentView get(Long id, Long userId) {
         return jdbc.sql("""
-                SELECT a.id, a.course_id, a.title, a.description, a.deadline, a.attachment_url, a.created_at,
+                SELECT a.id, a.course_id, a.title, a.description, a.deadline, a.attachment_url, a.attachment_name, a.created_at,
                        s.status AS submission_status, s.mark, s.feedback
                 FROM assignments a LEFT JOIN assignment_submissions s ON s.assignment_id=a.id AND s.student_id=:user
                 WHERE a.id=:id
@@ -120,11 +147,9 @@ public class AssignmentController {
                 """).param("assignment", assignmentId).param("student", studentId).query(SubmissionView.class).single();
     }
 
-    public record AssignmentRequest(Long courseId, @NotBlank String title, String description, OffsetDateTime deadline,
-                                    String attachmentUrl) {}
     public record AssignmentView(Long id, Long courseId, String title, String description, OffsetDateTime deadline,
-                                 String attachmentUrl, OffsetDateTime createdAt, String submissionStatus,
-                                 Integer mark, String feedback) {}
+                                 String attachmentUrl, String attachmentName, OffsetDateTime createdAt,
+                                 String submissionStatus, Integer mark, String feedback) {}
     public record GradeRequest(Integer mark, String feedback) {}
     public record SubmissionView(Long id, Long assignmentId, Long studentId, String studentName, String fileUrl,
                                  String fileName, String status, OffsetDateTime submittedAt, Integer mark, String feedback) {}
