@@ -131,7 +131,7 @@ export function AppShell({
         <div className="mb-3 flex items-center gap-3 rounded-lg px-2 py-2">
           <span className="grid h-9 w-9 place-items-center rounded-full bg-neon/15 text-xs font-black text-neon">
             {user?.fullName
-              .split(" ")
+              ?.split(" ")
               .map((v: string) => v[0])
               .slice(0, 2)
               .join("") || ".."}
