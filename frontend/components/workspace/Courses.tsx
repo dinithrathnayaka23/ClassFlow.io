@@ -6,8 +6,12 @@ import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
+  Check,
+  Pencil,
   Plus,
+  Trash2,
   Users as UsersIcon,
+  X,
 } from "lucide-react";
 import { api, Course } from "@/lib/api";
 import { Card, Empty, Notice, SectionTitle } from "@/components/ui";
@@ -31,6 +35,13 @@ export function Courses({
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [lessons, setLessons] = useState<Lesson[]>([]);
+  // Separate from the create-course error so the two forms cannot show each other's messages.
+  const [lessonError, setLessonError] = useState("");
+  // Edit/delete report next to the list; addLesson reports inside its own form.
+  const [rowError, setRowError] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
   const course = courses.find((item) => item.id === courseId);
   useEffect(() => {
     if (courseId)
@@ -54,16 +65,64 @@ export function Courses({
   }
   async function addLesson(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    await api(`/courses/${courseId}/lessons`, {
-      method: "POST",
-      body: JSON.stringify({
-        ...Object.fromEntries(form),
-        position: lessons.length + 1,
-      }),
-    });
-    setLessons(await api(`/courses/${courseId}/lessons`));
-    event.currentTarget.reset();
+    // Hold the element itself: React clears currentTarget once the handler's
+    // synchronous phase ends, so it is null by the time the awaits below resolve.
+    const formElement = event.currentTarget;
+    const values = new FormData(formElement);
+    setLessonError("");
+    try {
+      await api(`/courses/${courseId}/lessons`, {
+        method: "POST",
+        body: JSON.stringify({
+          ...Object.fromEntries(values),
+          position: lessons.length + 1,
+        }),
+      });
+      setLessons(await api(`/courses/${courseId}/lessons`));
+      formElement.reset();
+    } catch (e) {
+      setLessonError(
+        e instanceof Error ? e.message : "Could not add the lesson",
+      );
+    }
+  }
+
+  async function saveLesson(event: FormEvent<HTMLFormElement>, id: number) {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const values = Object.fromEntries(new FormData(formElement));
+    setRowError("");
+    setBusyId(id);
+    try {
+      await api(`/courses/${courseId}/lessons/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(values),
+      });
+      setLessons(await api(`/courses/${courseId}/lessons`));
+      setEditingId(null);
+    } catch (e) {
+      setRowError(
+        e instanceof Error ? e.message : "Could not update the lesson",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function removeLesson(id: number) {
+    setRowError("");
+    setBusyId(id);
+    try {
+      await api(`/courses/${courseId}/lessons/${id}`, { method: "DELETE" });
+      setLessons(await api(`/courses/${courseId}/lessons`));
+      setConfirmId(null);
+    } catch (e) {
+      setRowError(
+        e instanceof Error ? e.message : "Could not delete the lesson",
+      );
+    } finally {
+      setBusyId(null);
+    }
   }
   if (courseId)
     return (
@@ -82,18 +141,109 @@ export function Courses({
         <div className="grid gap-6 lg:grid-cols-[1fr_.45fr]">
           <section className="panel p-6">
             <h2 className="font-black">Lesson plan</h2>
+            <Notice error={rowError} />
             <div className="mt-5 space-y-3">
               {lessons.map((lesson, index) => (
-                <div className="card flex gap-4" key={lesson.id}>
-                  <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-neon/10 text-xs font-black text-neon">
-                    {index + 1}
-                  </span>
-                  <div>
-                    <p className="font-bold">{lesson.title}</p>
-                    <p className="mt-1 text-sm text-white/40">
-                      {lesson.description}
-                    </p>
-                  </div>
+                <div className="card" key={lesson.id}>
+                  {editingId === lesson.id ? (
+                    <form
+                      className="space-y-3"
+                      onSubmit={(event) => saveLesson(event, lesson.id)}
+                    >
+                      <input
+                        className="input"
+                        name="title"
+                        defaultValue={lesson.title}
+                        aria-label="Lesson title"
+                        required
+                      />
+                      <textarea
+                        className="input"
+                        name="description"
+                        rows={3}
+                        defaultValue={lesson.description}
+                        aria-label="Lesson description"
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        <button className="btn" disabled={busyId === lesson.id}>
+                          <Check size={15} />
+                          {busyId === lesson.id ? "Saving..." : "Save"}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => setEditingId(null)}
+                        >
+                          <X size={15} />
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <div className="flex gap-4">
+                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-neon/10 text-xs font-black text-neon">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold">{lesson.title}</p>
+                        {lesson.description && (
+                          <p className="mt-1 text-sm text-white/40">
+                            {lesson.description}
+                          </p>
+                        )}
+                        {confirmId === lesson.id && (
+                          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-red-400/30 bg-red-400/10 p-3">
+                            <p className="mr-1 text-sm text-red-200">
+                              Delete this lesson?
+                            </p>
+                            <button
+                              type="button"
+                              className="rounded-full bg-red-400/90 px-3 py-1.5 text-xs font-bold text-ink transition hover:bg-red-300 disabled:opacity-50"
+                              onClick={() => removeLesson(lesson.id)}
+                              disabled={busyId === lesson.id}
+                            >
+                              {busyId === lesson.id ? "Deleting..." : "Delete"}
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-full px-3 py-1.5 text-xs font-bold text-white/60 transition hover:text-white"
+                              onClick={() => setConfirmId(null)}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {role !== "student" && confirmId !== lesson.id && (
+                        <div className="flex shrink-0 items-start gap-1">
+                          <button
+                            type="button"
+                            className="rounded-lg p-2 text-white/40 transition hover:bg-white/5 hover:text-neon"
+                            onClick={() => {
+                              setConfirmId(null);
+                              setEditingId(lesson.id);
+                            }}
+                            aria-label={`Edit lesson: ${lesson.title}`}
+                            title="Edit lesson"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-lg p-2 text-white/40 transition hover:bg-white/5 hover:text-red-300"
+                            onClick={() => {
+                              setEditingId(null);
+                              setConfirmId(lesson.id);
+                            }}
+                            aria-label={`Delete lesson: ${lesson.title}`}
+                            title="Delete lesson"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ))}
               {!lessons.length && (
@@ -115,6 +265,7 @@ export function Courses({
             {role !== "student" && (
               <form className="panel space-y-4 p-5" onSubmit={addLesson}>
                 <h3 className="font-black">Add lesson</h3>
+                <Notice error={lessonError} />
                 <input
                   className="input"
                   name="title"
