@@ -34,7 +34,7 @@ public class QuizController {
         access.requireView(courseId, user);
         return jdbc.sql("""
                 SELECT q.id, q.course_id, q.title, q.description, q.duration_minutes, q.starts_at, q.ends_at,
-                       a.score, a.max_score, a.submitted_at,
+                       a.score, a.max_score, a.submitted_at, a.started_at,
                        (SELECT COUNT(*) FROM quiz_questions x WHERE x.quiz_id=q.id) AS question_count
                 FROM quizzes q LEFT JOIN quiz_attempts a ON a.quiz_id=q.id AND a.student_id=:user
                 WHERE q.course_id=:course ORDER BY q.starts_at DESC
@@ -57,8 +57,97 @@ public class QuizController {
                 .param("description", request.description()).param("duration", request.durationMinutes())
                 .param("starts", request.startsAt()).param("ends", request.endsAt()).param("user", user.id())
                 .query(Long.class).single();
+        writeQuestions(quizId, request.questions());
+        return get(quizId, user.id());
+    }
+
+    @PatchMapping("/{id}")
+    @Transactional
+    public QuizView update(@PathVariable Long id, @Valid @RequestBody QuizUpdateRequest request,
+                           Authentication authentication) {
+        var user = currentUser.require(authentication);
+        var quiz = get(id, user.id());
+        access.requireManage(quiz.courseId(), user);
+        validateWindow(request.startsAt(), request.endsAt(), request.durationMinutes());
+
+        jdbc.sql("""
+                UPDATE quizzes SET title=:title, description=:description, duration_minutes=:duration,
+                                   starts_at=:starts, ends_at=:ends
+                WHERE id=:id
+                """).param("title", request.title())
+                .param("description", request.description() == null ? "" : request.description())
+                .param("duration", request.durationMinutes()).param("starts", request.startsAt())
+                .param("ends", request.endsAt()).param("id", id).update();
+
+        // Questions are optional: omitting them edits only the schedule and wording.
+        if (request.questions() != null && !request.questions().isEmpty()) {
+            // Replacing questions cascades away quiz_attempt_answers, which would leave
+            // existing attempts scored against questions that no longer exist.
+            if (attemptCount(id) > 0) {
+                throw new ApiException(HttpStatus.CONFLICT,
+                        "Students have already attempted this quiz. Reopen their attempts before changing the questions.");
+            }
+            jdbc.sql("DELETE FROM quiz_questions WHERE quiz_id=:id").param("id", id).update();
+            writeQuestions(id, request.questions());
+        }
+        return get(id, user.id());
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id, Authentication authentication) {
+        var user = currentUser.require(authentication);
+        var quiz = get(id, user.id());
+        access.requireManage(quiz.courseId(), user);
+        // Questions, options, attempts and answers all cascade from this row.
+        jdbc.sql("DELETE FROM quizzes WHERE id=:id").param("id", id).update();
+    }
+
+    @GetMapping("/{id}/attempts")
+    public List<AttemptSummary> attempts(@PathVariable Long id, Authentication authentication) {
+        var user = currentUser.require(authentication);
+        var quiz = get(id, user.id());
+        access.requireManage(quiz.courseId(), user);
+        return jdbc.sql("""
+                SELECT a.id, a.student_id, u.full_name AS student_name, u.email,
+                       a.started_at, a.submitted_at, a.score, a.max_score
+                FROM quiz_attempts a JOIN users u ON u.id=a.student_id
+                WHERE a.quiz_id=:id ORDER BY u.full_name
+                """).param("id", id).query(AttemptSummary.class).list();
+    }
+
+    /** Clears a student's attempt so they may sit the quiz again inside the availability window. */
+    @DeleteMapping("/{id}/attempts/{studentId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void reopen(@PathVariable Long id, @PathVariable Long studentId, Authentication authentication) {
+        var user = currentUser.require(authentication);
+        var quiz = get(id, user.id());
+        access.requireManage(quiz.courseId(), user);
+        var removed = jdbc.sql("DELETE FROM quiz_attempts WHERE quiz_id=:quiz AND student_id=:student")
+                .param("quiz", id).param("student", studentId).update();
+        if (removed == 0) throw new ApiException(HttpStatus.NOT_FOUND, "No attempt found for that student");
+    }
+
+    private long attemptCount(Long quizId) {
+        return jdbc.sql("SELECT COUNT(*) FROM quiz_attempts WHERE quiz_id=:id")
+                .param("id", quizId).query(Long.class).single();
+    }
+
+    private void validateWindow(OffsetDateTime startsAt, OffsetDateTime endsAt, int durationMinutes) {
+        if (startsAt == null || endsAt == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Both a start and end time are required");
+        }
+        if (!endsAt.isAfter(startsAt)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Quiz end time must be after start time");
+        }
+        if (durationMinutes <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Duration must be at least one minute");
+        }
+    }
+
+    private void writeQuestions(Long quizId, List<QuestionRequest> questions) {
         var position = 0;
-        for (var question : request.questions()) {
+        for (var question : questions) {
             if (question.options().size() < 2 || question.options().stream().filter(OptionRequest::correct).count() != 1) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Each question needs at least two options and exactly one correct answer");
             }
@@ -72,7 +161,6 @@ public class QuizController {
                         .param("question", questionId).param("text", option.text()).param("correct", option.correct()).update();
             }
         }
-        return get(quizId, user.id());
     }
 
     @GetMapping("/{id}")
@@ -154,7 +242,7 @@ public class QuizController {
     private QuizView get(Long id, Long user) {
         return jdbc.sql("""
                 SELECT q.id, q.course_id, q.title, q.description, q.duration_minutes, q.starts_at, q.ends_at,
-                       a.score, a.max_score, a.submitted_at,
+                       a.score, a.max_score, a.submitted_at, a.started_at,
                        (SELECT COUNT(*) FROM quiz_questions x WHERE x.quiz_id=q.id) AS question_count
                 FROM quizzes q LEFT JOIN quiz_attempts a ON a.quiz_id=q.id AND a.student_id=:user WHERE q.id=:id
                 """).param("id", id).param("user", user).query(QuizView.class).optional()
@@ -171,11 +259,17 @@ public class QuizController {
 
     public record QuizRequest(Long courseId, @NotBlank String title, String description, int durationMinutes,
                               OffsetDateTime startsAt, OffsetDateTime endsAt, @NotEmpty List<QuestionRequest> questions) {}
+    public record QuizUpdateRequest(@NotBlank String title, String description, int durationMinutes,
+                                    OffsetDateTime startsAt, OffsetDateTime endsAt,
+                                    List<QuestionRequest> questions) {}
     public record QuestionRequest(@NotBlank String prompt, int points, @NotEmpty List<OptionRequest> options) {}
+    public record AttemptSummary(Long id, Long studentId, String studentName, String email,
+                                 OffsetDateTime startedAt, OffsetDateTime submittedAt,
+                                 Integer score, Integer maxScore) {}
     public record OptionRequest(@NotBlank String text, boolean correct) {}
     public record QuizView(Long id, Long courseId, String title, String description, int durationMinutes,
                            OffsetDateTime startsAt, OffsetDateTime endsAt, Integer score, Integer maxScore,
-                           OffsetDateTime submittedAt, long questionCount) {}
+                           OffsetDateTime submittedAt, OffsetDateTime startedAt, long questionCount) {}
     public record QuestionView(Long id, String prompt, int points, int position) {}
     public record OptionView(Long id, String text, Boolean correct) {}
     public record SubmitRequest(List<AnswerRequest> answers) {}

@@ -1,6 +1,0 @@
-- [x] Remove Redis service + volumes + backend depends_on + REDIS_HOST from docker-compose.yml
-- [x] Remove spring-boot-starter-data-redis from backend/pom.xml
-- [x] Remove spring.data.redis.* from backend/src/main/resources/application.yml
-- [x] Keep Flyway migration SQL file (V1__initial_schema.sql) unchanged
-- [x] Remove docker (compose) artifacts + update README (completed manually via README edits)
-- [ ] Sanity check: ensure backend can start with only PostgreSQL + Flyway

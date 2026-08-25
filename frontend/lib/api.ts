@@ -37,7 +37,10 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   throw new Error(`Expected JSON but received non-JSON response. Response: ${snippet}`);
 }
 
-export type User = { id: number; email: string; fullName: string; role: "ADMIN" | "TEACHER" | "STUDENT" };
+export type User = {
+  id: number; email: string; fullName: string;
+  role: "ADMIN" | "TEACHER" | "STUDENT"; avatarUrl?: string;
+};
 export type Course = {
   id: number; title: string; code: string; description: string; subject: string; active: boolean;
   teacherId: number; teacherName: string; studentCount: number; createdAt: string;

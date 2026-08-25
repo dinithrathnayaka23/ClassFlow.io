@@ -8,11 +8,6 @@ import { Brand } from "@/components/Brand";
 import { api, User } from "@/lib/api";
 import { Notice } from "@/components/ui";
 
-const demos = [
-  ["Teacher", "teacher@classflow.com", "Teacher123!"],
-  ["Student", "student@classflow.com", "Student123!"],
-];
-
 function LoginPage() {
   const router = useRouter();
   const search = useSearchParams();
@@ -115,42 +110,13 @@ function LoginPage() {
             </button>
           </form>
           
-          <div className="mt-8 border-t border-line pt-6 space-y-6">
-            <div>
-              <p className="label mb-3">Demo accounts (for testing)</p>
-              <div className="grid grid-cols-2 gap-2">
-                {demos.map(([role, mail, pass]) => (
-                  <button
-                    key={role}
-                    className="btn-secondary px-3 py-2 text-xs"
-                    onClick={() => {
-                      setEmail(mail);
-                      setPassword(pass);
-                    }}
-                  >
-                    {role} Demo
-                  </button>
-                ))}
-                <button
-                  className="btn-secondary px-3 py-2 text-xs col-span-2"
-                  onClick={() => {
-                    setEmail("admin@classflow.com");
-                    setPassword("Admin123!");
-                  }}
-                >
-                  Admin Demo
-                </button>
-              </div>
-            </div>
-            
-            <div className="border-t border-line pt-6">
-              <p className="text-sm text-white/60">
-                Don't have an account?{" "}
-                <Link href="/signup" className="font-semibold text-neon hover:text-white transition">
-                  Create one
-                </Link>
-              </p>
-            </div>
+          <div className="mt-8 border-t border-line pt-6">
+            <p className="text-sm text-white/60">
+              Don&apos;t have an account?{" "}
+              <Link href="/signup" className="font-semibold text-neon hover:text-white transition">
+                Create one
+              </Link>
+            </p>
           </div>
         </div>
       </section>

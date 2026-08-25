@@ -45,15 +45,29 @@ The project is a modular monolith: one Spring Boot API with clear domain package
 
 Start PostgreSQL, then run the Flyway schema/migrations via the backend (Flyway runs on startup by default).
 
-| Role | Email | Password |
-| --- | --- | --- |
-| Admin | `admin@classflow.com` | `Admin123!` |
-| Teacher | `teacher@classflow.com` | `Teacher123!` |
-| Student | `student@classflow.com` | `Student123!` |
+### Configuration
 
-Change every seeded password and the `.env` secrets before exposing the application publicly.
+All backend configuration lives in a single git-ignored file, `backend/.env`. Create it from the
+committed template and fill in your own values:
 
-## Local Development (No Docker)
+```bash
+cp backend/.env.example backend/.env
+```
+
+`JWT_SECRET` and the database credentials have no defaults - the application refuses to start
+without them, by design. Generate a secret with `openssl rand -base64 48`.
+
+### Accounts
+
+There are no seeded or demo accounts, and no credentials are stored in this repository.
+
+- **Teachers and students** create their own accounts at `/signup`.
+- **The admin cannot be self-registered.** Set `ADMIN_EMAIL` and `ADMIN_PASSWORD` in
+  `backend/.env`; `AdminBootstrap` provisions that account on the next startup and it is the
+  only way an admin is created. To rotate the password later, set `ADMIN_RESET_PASSWORD=true`
+  for exactly one restart, then set it back to `false`.
+
+## Local Development
 
 1) Create and initialize the database (schema):
 - Create a PostgreSQL database (default: `classflow`)
@@ -69,16 +83,14 @@ mvn spring-boot:run
 ```bash
 cd frontend
 npm install
-NEXT_PUBLIC_API_URL=http://localhost:8080/api npm run dev
-```
-
-On Windows PowerShell:
-```powershell
-$env:NEXT_PUBLIC_API_URL="http://localhost:8080/api"
 npm run dev
 ```
 
-The backend defaults to `classflow/classflow` for the database. Override any backend values via environment variables documented in `backend/src/main/resources/application.yml`.
+The client needs no environment file. `next.config.ts` proxies `/api` and `/uploads` to the
+backend, so browser requests stay same-origin and the HTTP-only auth cookie works without CORS.
+Override the target with `BACKEND_ORIGIN` if the API is not on `http://localhost:8080`.
+
+All backend values come from `backend/.env` (see `backend/.env.example`); the keys they map to are documented in `backend/src/main/resources/application.yml`.
 
 ## Repository Structure
 
@@ -90,12 +102,10 @@ The backend defaults to `classflow/classflow` for the database. Override any bac
 │   │   ├── assignment, chat, forum, ai, admin
 │   │   └── common, config
 │   └── src/main/resources/db/migration/
-├── frontend/
-│   ├── app/
-│   ├── components/workspace/
-│   └── lib/
-├── nginx/nginx.conf
-└── docker-compose.yml
+└── frontend/
+    ├── app/
+    ├── components/workspace/
+    └── lib/
 ```
 
 ## API Summary
@@ -121,6 +131,10 @@ All endpoints except login and health require authentication. Resource access is
 - JWTs expire after 12 hours by default and are issued in an HTTP-only, `SameSite=Lax` cookie.
 - The readable role cookie is only a UI routing hint. Backend role and ownership checks remain authoritative.
 - Set `SECURE_COOKIES=true`, a strong `JWT_SECRET`, and HTTPS on a public deployment.
+- No credentials exist in this repository. `backend/.env` is the single, git-ignored source of
+  configuration; `backend/.env.example` is the committed template and holds only placeholders.
+- There are no seeded accounts. The admin is provisioned from `ADMIN_EMAIL`/`ADMIN_PASSWORD`;
+  teachers and students self-register and cannot obtain the ADMIN role.
 - Uploaded files are stored outside the database in the configured upload directory. The `FileStorage` boundary can later be replaced by S3 or Cloudflare R2.
 
 ## Deployment Notes
@@ -130,7 +144,13 @@ This MVP is designed to run with:
 - Spring Boot backend (Flyway migrations on startup)
 - PostgreSQL database
 
-If you deploy behind a reverse proxy (recommended), ensure uploads work at the configured `app.upload-dir` and CORS/secure cookie settings match your domain.
+The project is not containerised: run the API with `mvn spring-boot:run` (or `java -jar` the
+packaged artifact from `backend/`, so `backend/.env` is found) and the client with `npm run build`
+followed by `npm start`.
+
+The client proxies `/api` and `/uploads` to the backend itself via `next.config.ts`, so no
+separate reverse proxy is required. Point `BACKEND_ORIGIN` at the API and set `SECURE_COOKIES=true`
+plus HTTPS when deploying publicly. Ensure the configured `app.upload-dir` is writable.
 
 ## MVP Boundaries
 

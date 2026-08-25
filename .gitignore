@@ -1,4 +1,9 @@
+# Environment files - never commit real credentials.
+# The only .env in this project is backend/.env (git-ignored);
+# backend/.env.example is the committed template.
 .env
+.env.*
+!.env.example
 .idea/
 .vscode/
 *.iml
@@ -8,3 +13,4 @@ frontend/node_modules/
 frontend/.next/
 frontend/.env.local
 *.log
+frontend/tsconfig.tsbuildinfo

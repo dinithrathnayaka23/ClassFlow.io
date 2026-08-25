@@ -12,6 +12,7 @@ type Assignment = {
   description: string;
   deadline: string;
   attachmentUrl?: string;
+  attachmentName?: string;
   submissionStatus?: string;
   mark?: number;
   feedback?: string;
@@ -62,17 +63,22 @@ export function Assignments({
   async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
-    const values = Object.fromEntries(new FormData(event.currentTarget));
+    const formElement = event.currentTarget;
+    const values = new FormData(formElement);
+    // Multipart, not JSON: the brief is an uploaded file.
+    values.set("courseId", String(courseId));
+    values.set(
+      "deadline",
+      new Date(String(values.get("deadline"))).toISOString(),
+    );
+    // An empty file input still appends a zero-byte entry, which the server
+    // would treat as a real upload attempt.
+    const chosen = values.get("file");
+    if (chosen instanceof File && chosen.size === 0) values.delete("file");
     try {
-      await api("/assignments", {
-        method: "POST",
-        body: JSON.stringify({
-          ...values,
-          courseId,
-          deadline: new Date(String(values.deadline)).toISOString(),
-        }),
-      });
+      await api("/assignments", { method: "POST", body: values });
       setOpen(false);
+      formElement.reset();
       load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not create assignment");
@@ -140,6 +146,17 @@ export function Assignments({
                     )}
                   </div>
                   <h2 className="mt-4 text-lg font-black">{item.title}</h2>
+                  {item.attachmentUrl && (
+                    <a
+                      className="btn-secondary mt-3 px-3 py-1.5 text-xs"
+                      href={item.attachmentUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <Download size={13} />
+                      {item.attachmentName || "Download brief"}
+                    </a>
+                  )}
                   <p className="mt-2 text-sm leading-6 text-white/45">
                     {item.description}
                   </p>
@@ -255,8 +272,8 @@ export function Assignments({
               required
             />
           </Field>
-          <Field label="Optional resource link">
-            <input className="input" type="url" name="attachmentUrl" />
+          <Field label="Brief or worksheet (optional)">
+            <input className="input" type="file" name="file" />
           </Field>
           <button className="btn w-full">Create assignment</button>
         </form>

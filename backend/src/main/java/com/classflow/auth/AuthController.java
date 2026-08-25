@@ -4,7 +4,6 @@ import com.classflow.common.ApiException;
 import com.classflow.security.CurrentUser;
 import com.classflow.security.JwtService;
 import com.classflow.security.UserPrincipal;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -14,6 +13,7 @@ import jakarta.validation.constraints.Size;
 import java.time.Duration;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
@@ -49,44 +49,46 @@ public class AuthController {
         this.passwords = passwords;
     }
 
+    /**
+     * Self-service sign-up. Only TEACHER and STUDENT may register here: ADMIN accounts are
+     * provisioned from configuration by AdminBootstrap so the admin role cannot be claimed
+     * by anyone who can reach the public API.
+     */
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
-    public Map<String, Object> register(@Valid @RequestBody RegisterRequest request) {
-        // Only TEACHER and STUDENT roles can self-register
-        if ("ADMIN".equalsIgnoreCase(request.role())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Admin accounts cannot be self-registered");
+    public UserView register(@Valid @RequestBody RegisterRequest request) {
+        var role = request.role().toUpperCase();
+        if (!("TEACHER".equals(role) || "STUDENT".equals(role))) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Role must be TEACHER or STUDENT");
         }
-        
-        if (!("TEACHER".equalsIgnoreCase(request.role()) || "STUDENT".equalsIgnoreCase(request.role()))) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid role. Only TEACHER or STUDENT allowed");
-        }
-        
-        if (jdbc.sql("SELECT EXISTS(SELECT 1 FROM users WHERE LOWER(email)=LOWER(:email))")
-                .param("email", request.email()).query(Boolean.class).single()) {
+
+        var email = request.email().trim().toLowerCase();
+        var fullName = request.fullName().trim();
+        if (jdbc.sql("SELECT EXISTS(SELECT 1 FROM users WHERE LOWER(email)=:email)")
+                .param("email", email).query(Boolean.class).single()) {
             throw new ApiException(HttpStatus.CONFLICT, "Email is already registered");
         }
-        
-        var id = jdbc.sql("""
-                INSERT INTO users(email, password_hash, full_name, role, active)
-                VALUES (:email, :password, :name, :role, true) RETURNING id
-                """).param("email", request.email())
-                .param("password", passwords.encode(request.password()))
-                .param("name", request.fullName())
-                .param("role", request.role().toUpperCase())
-                .query(Long.class).single();
-        
-        return Map.of(
-            "id", id,
-            "email", request.email(),
-            "fullName", request.fullName(),
-            "role", request.role().toUpperCase()
-        );
+
+        try {
+            var id = jdbc.sql("""
+                    INSERT INTO users(email, password_hash, full_name, role, active)
+                    VALUES (:email, :password, :name, :role, true) RETURNING id
+                    """).param("email", email)
+                    .param("password", passwords.encode(request.password()))
+                    .param("name", fullName)
+                    .param("role", role)
+                    .query(Long.class).single();
+            return new UserView(id, email, fullName, role, null, null, null, true, null);
+        } catch (DuplicateKeyException duplicate) {
+            // Two concurrent sign-ups for the same address: the unique index is the source of truth.
+            throw new ApiException(HttpStatus.CONFLICT, "Email is already registered");
+        }
     }
 
     @PostMapping("/login")
     public UserView login(@Valid @RequestBody LoginRequest request, HttpServletResponse response) {
         var authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.email(), request.password()));
+                new UsernamePasswordAuthenticationToken(request.email().trim().toLowerCase(), request.password()));
         var user = (UserPrincipal) authentication.getPrincipal();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie("classflow_token", jwt.create(user), true).toString());
         response.addHeader(HttpHeaders.SET_COOKIE, cookie("classflow_role", user.role().toLowerCase(), false).toString());
@@ -115,41 +117,31 @@ public class AuthController {
                 .path("/").maxAge(Duration.ZERO).build();
     }
 
-    private UserView get(Long id) {
-        var result = jdbc.sql("""
-                SELECT id, email, full_name, role, phone, bio, active, created_at FROM users WHERE id=:id
-                """).param("id", id).query((rs, rowNum) -> new UserView(
-                    rs.getLong("id"),
-                    rs.getString("email"),
-                    rs.getString("full_name"),
-                    rs.getString("role"),
-                    rs.getString("phone"),
-                    rs.getString("bio"),
-                    rs.getBoolean("active"),
-                    rs.getObject("created_at", java.time.OffsetDateTime.class)
-                )).optional().orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
-        return result;
-    }
+    public record LoginRequest(@NotBlank @Email String email, @NotBlank String password) {}
 
-    public record LoginRequest(@Email String email, @NotBlank String password) {}
     public record RegisterRequest(
-            @Email String email,
+            @NotBlank(message = "Email is required") @Email(message = "Enter a valid email address") String email,
+            @NotBlank(message = "Password is required")
             @Size(min = 8, message = "Password must be at least 8 characters") String password,
             @NotBlank(message = "Full name is required") String fullName,
-            @Pattern(regexp = "TEACHER|STUDENT", message = "Role must be TEACHER or STUDENT") String role
+            @NotBlank(message = "Role is required")
+            @Pattern(regexp = "(?i)TEACHER|STUDENT", message = "Role must be TEACHER or STUDENT") String role
     ) {}
+
     public record UserView(
-            Long id, 
-            String email, 
-            @JsonProperty("full_name") String fullName, 
-            String role, 
-            String phone, 
-            String bio, 
-            boolean active, 
-            @JsonProperty("created_at") java.time.OffsetDateTime createdAt
+            Long id,
+            String email,
+            String fullName,
+            String role,
+            String phone,
+            String bio,
+            String avatarUrl,
+            boolean active,
+            java.time.OffsetDateTime createdAt
     ) {
         static UserView from(UserPrincipal user) {
-            return new UserView(user.id(), user.email(), user.fullName(), user.role(), null, null, user.active(), null);
+            return new UserView(user.id(), user.email(), user.fullName(), user.role(), null, null,
+                    user.avatarUrl(), user.active(), null);
         }
     }
 }

@@ -105,11 +105,47 @@ public class CourseController {
         var lessonId = jdbc.sql("""
                 INSERT INTO lessons(course_id, title, description, position)
                 VALUES (:course, :title, :description, :position) RETURNING id
-                """).param("course", id).param("title", request.title()).param("description", request.description())
+                """).param("course", id).param("title", request.title())
+                .param("description", text(request.description()))
                 .param("position", request.position()).query(Long.class).single();
+        return requireLesson(lessonId);
+    }
+
+    @PatchMapping("/{id}/lessons/{lessonId}")
+    public LessonView updateLesson(@PathVariable Long id, @PathVariable Long lessonId,
+                                   @Valid @RequestBody LessonUpdateRequest request,
+                                   Authentication authentication) {
+        access.requireManage(id, currentUser.require(authentication));
+        // Matching on course_id as well stops a teacher editing a lesson that
+        // belongs to a course they do not manage by passing its id here.
+        var updated = jdbc.sql("""
+                UPDATE lessons SET title=:title, description=:description
+                WHERE id=:lesson AND course_id=:course
+                """).param("title", request.title()).param("description", text(request.description()))
+                .param("lesson", lessonId).param("course", id).update();
+        if (updated == 0) throw new ApiException(HttpStatus.NOT_FOUND, "Lesson not found in this course");
+        return requireLesson(lessonId);
+    }
+
+    @DeleteMapping("/{id}/lessons/{lessonId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteLesson(@PathVariable Long id, @PathVariable Long lessonId, Authentication authentication) {
+        access.requireManage(id, currentUser.require(authentication));
+        var deleted = jdbc.sql("DELETE FROM lessons WHERE id=:lesson AND course_id=:course")
+                .param("lesson", lessonId).param("course", id).update();
+        if (deleted == 0) throw new ApiException(HttpStatus.NOT_FOUND, "Lesson not found in this course");
+    }
+
+    private LessonView requireLesson(Long lessonId) {
         return jdbc.sql("""
                 SELECT id, course_id, title, description, position, created_at FROM lessons WHERE id=:id
-                """).param("id", lessonId).query(LessonView.class).single();
+                """).param("id", lessonId).query(LessonView.class).optional()
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Lesson not found"));
+    }
+
+    /** lessons.description is NOT NULL, so an omitted description becomes an empty string. */
+    private String text(String value) {
+        return value == null ? "" : value;
     }
 
     private CourseView require(Long id) {
@@ -133,6 +169,8 @@ public class CourseController {
                                 @NotBlank String subject, Long teacherId) {}
     public record EnrollmentRequest(Long studentId) {}
     public record LessonRequest(@NotBlank String title, String description, int position) {}
+    public record LessonUpdateRequest(@NotBlank(message = "Lesson title is required") String title,
+                                      String description) {}
     public record LessonView(Long id, Long courseId, String title, String description, int position,
                              OffsetDateTime createdAt) {}
 }

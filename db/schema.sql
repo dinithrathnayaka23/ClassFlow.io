@@ -1,4 +1,4 @@
--- Run this in pgAdmin4 to create the schema locally (without Docker).
+-- Run this in pgAdmin 4 (or psql) to create the schema locally.
 -- This file is intentionally independent from Flyway's V1__initial_schema.sql.
 
 CREATE TABLE users (
@@ -9,6 +9,7 @@ CREATE TABLE users (
     role VARCHAR(20) NOT NULL CHECK (role IN ('ADMIN', 'TEACHER', 'STUDENT')),
     phone VARCHAR(40),
     bio TEXT,
+    avatar_url TEXT,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -108,6 +109,7 @@ CREATE TABLE assignments (
     description TEXT NOT NULL DEFAULT '',
     deadline TIMESTAMPTZ NOT NULL,
     attachment_url TEXT,
+    attachment_name TEXT,
     created_by BIGINT NOT NULL REFERENCES users(id),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
