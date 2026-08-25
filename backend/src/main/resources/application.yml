@@ -23,6 +23,13 @@ app:
   upload-dir: ${UPLOAD_DIR:./uploads}
   secure-cookies: ${SECURE_COOKIES:false}
   allowed-origin: ${ALLOWED_ORIGIN:http://localhost:3000}
+  # The single ADMIN account, provisioned on startup by AdminBootstrap.
+  # Admins cannot self-register, so these credentials are the only way in.
+  admin:
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}
+    name: ${ADMIN_NAME:ClassFlow Admin}
+    reset-password: ${ADMIN_RESET_PASSWORD:false}
 management:
   endpoints:
     web:
