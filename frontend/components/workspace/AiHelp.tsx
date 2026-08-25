@@ -4,8 +4,13 @@ import { FormEvent, useState } from "react";
 import { Bot, Send, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
 import { SectionTitle } from "@/components/ui";
+import { Markdown } from "@/components/Markdown";
 
-type ChatItem = { who: "user" | "assistant"; text: string };
+type ChatItem = {
+  who: "user" | "assistant";
+  text: string;
+  provider?: string;
+};
 const suggestions = [
   "How do I upload an assignment?",
   "How do I create a quiz?",
@@ -21,15 +26,29 @@ export function AiHelp({ role }: { role: string }) {
   ]);
   const [loading, setLoading] = useState(false);
   async function ask(question: string) {
-    if (!question.trim()) return;
+    if (!question.trim() || loading) return;
     setMessages((old) => [...old, { who: "user", text: question }]);
     setLoading(true);
     try {
-      const data = await api<{ answer: string }>("/ai/ask", {
-        method: "POST",
-        body: JSON.stringify({ question }),
-      });
-      setMessages((old) => [...old, { who: "assistant", text: data.answer }]);
+      const data = await api<{ answer: string; provider?: string }>(
+        "/ai/ask",
+        { method: "POST", body: JSON.stringify({ question }) },
+      );
+      setMessages((old) => [
+        ...old,
+        { who: "assistant", text: data.answer, provider: data.provider },
+      ]);
+    } catch (e) {
+      setMessages((old) => [
+        ...old,
+        {
+          who: "assistant",
+          text:
+            e instanceof Error
+              ? `Sorry, I could not answer that. ${e.message}`
+              : "Sorry, I could not answer that right now.",
+        },
+      ]);
     } finally {
       setLoading(false);
     }
@@ -64,7 +83,16 @@ export function AiHelp({ role }: { role: string }) {
                 <div
                   className={`max-w-[85%] rounded-xl px-4 py-3 text-sm leading-6 ${message.who === "user" ? "bg-neon text-ink" : "border border-line bg-white/[.03] text-white/65"}`}
                 >
-                  {message.text}
+                  {message.who === "assistant" ? (
+                    <Markdown text={message.text} />
+                  ) : (
+                    message.text
+                  )}
+                  {message.provider && message.provider !== "builtin" && (
+                    <span className="mt-2 block text-[10px] uppercase tracking-widest text-white/25">
+                      via {message.provider}
+                    </span>
+                  )}
                 </div>
               </div>
             ))}
