@@ -30,6 +30,20 @@ app:
     password: ${ADMIN_PASSWORD:}
     name: ${ADMIN_NAME:ClassFlow Admin}
     reset-password: ${ADMIN_RESET_PASSWORD:false}
+  # AI help. Providers are tried in the order below and the first one that
+  # answers wins; a provider with no API key is skipped. With no keys set at all
+  # the assistant falls back to built-in guidance, so the feature still works.
+  ai:
+    order: ${AI_PROVIDER_ORDER:gemini,groq}
+    timeout-seconds: ${AI_TIMEOUT_SECONDS:20}
+    gemini:
+      api-key: ${GEMINI_API_KEY:}
+      model: ${GEMINI_MODEL:gemini-2.0-flash}
+      base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com/v1beta}
+    groq:
+      api-key: ${GROQ_API_KEY:}
+      model: ${GROQ_MODEL:llama-3.3-70b-versatile}
+      base-url: ${GROQ_BASE_URL:https://api.groq.com/openai/v1}
 management:
   endpoints:
     web:
