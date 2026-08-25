@@ -1,4 +1,4 @@
--- Run this in pgAdmin4 to create the schema locally (without Docker).
+-- Run this in pgAdmin 4 (or psql) to create the schema locally.
 -- This file is intentionally independent from Flyway's V1__initial_schema.sql.
 
 CREATE TABLE users (
