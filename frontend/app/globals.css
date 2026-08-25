@@ -152,6 +152,24 @@ body {
   .badge {
     @apply inline-flex rounded-full border border-neon/25 bg-neon/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-neon;
   }
+  /* Slim scrollbar for the sidebar link list, which scrolls on short viewports. */
+  .sidebar-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(85, 249, 145, 0.22) transparent;
+  }
+  .sidebar-scroll::-webkit-scrollbar {
+    width: 6px;
+  }
+  .sidebar-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .sidebar-scroll::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: rgba(85, 249, 145, 0.18);
+  }
+  .sidebar-scroll:hover::-webkit-scrollbar-thumb {
+    background-color: rgba(85, 249, 145, 0.32);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
