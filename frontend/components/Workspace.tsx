@@ -38,7 +38,7 @@ export function Workspace({
     return <Assignments role={role} submissionsOnly={page === "submissions"} />;
   if (page === "quizzes") return <Quizzes role={role} />;
   if (page === "forums") return <Forums role={role} />;
-  if (page === "chat") return <Chat />;
+  if (page === "chat") return <Chat role={role} />;
   if (page === "ai-help") return <AiHelp role={role} />;
   if (page === "profile") return <Profile />;
   return <Dashboard role={role} />;
