@@ -8,7 +8,7 @@ import {
   ClipboardCheck,
   FileText,
   MessageCircle,
-  Sparkles,
+  UserPlus,
   Users,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -16,9 +16,28 @@ import { api } from "@/lib/api";
 import { Card, SectionTitle } from "@/components/ui";
 import { useCourses } from "./shared";
 
+type Summary = {
+  courses: number;
+  submissionsToMark: number;
+  pendingRequests: number;
+  unreadMessages: number;
+  assignmentsDue: number;
+  quizzesOpen: number;
+};
+
+/** A tile: what it counts, where it sends you, and how it reads when the count is zero. */
+type Tile = {
+  label: string;
+  value: number;
+  icon: LucideIcon;
+  href: string;
+  empty: string;
+};
+
 export function Dashboard({ role }: { role: string }) {
   const { courses } = useCourses();
   const [stats, setStats] = useState<Record<string, number>>({});
+  const [summary, setSummary] = useState<Summary>();
   const [activity, setActivity] = useState<
     Array<{
       id: number;
@@ -32,22 +51,34 @@ export function Dashboard({ role }: { role: string }) {
     if (role === "admin") {
       api<Record<string, number>>("/admin/stats").then(setStats);
       api<typeof activity>("/admin/activity").then(setActivity);
+      return;
     }
+    api<Summary>("/dashboard/summary").then(setSummary).catch(() => {});
   }, [role]);
-  const cards: Array<[string, string | number, LucideIcon]> =
-    role === "admin"
-      ? [
-          ["Teachers", stats.teachers || 0, Users],
-          ["Students", stats.students || 0, Users],
-          ["Active courses", stats.courses || 0, BookOpen],
-          ["Submissions", stats.submissions || 0, ClipboardCheck],
-        ]
-      : [
-          ["Your courses", courses.length, BookOpen],
-          ["Resources", "Ready", FileText],
-          ["Class chat", "Open", MessageCircle],
-          ["AI help", "Online", Sparkles],
-        ];
+  // Every tile counts outstanding work and links to it. The previous student and teacher
+  // tiles read "Ready", "Open" and "Online", which never changed and led nowhere.
+  const adminTiles: Tile[] = [
+    // Labelled "active" because the API counts enabled accounts only, which would
+    // otherwise disagree with the totals on the Teachers/Students pages.
+    { label: "Active teachers", value: stats.teachers || 0, icon: Users, href: `/${role}/teachers`, empty: "None yet" },
+    { label: "Active students", value: stats.students || 0, icon: Users, href: `/${role}/students`, empty: "None yet" },
+    { label: "Active courses", value: stats.courses || 0, icon: BookOpen, href: `/${role}/courses`, empty: "None yet" },
+    { label: "Submissions", value: stats.submissions || 0, icon: ClipboardCheck, href: `/${role}/courses`, empty: "None yet" },
+  ];
+  const teacherTiles: Tile[] = [
+    { label: "Courses you run", value: summary?.courses ?? 0, icon: BookOpen, href: `/${role}/courses`, empty: "None yet" },
+    { label: "Waiting to be marked", value: summary?.submissionsToMark ?? 0, icon: ClipboardCheck, href: `/${role}/submissions`, empty: "All marked" },
+    { label: "Join requests", value: summary?.pendingRequests ?? 0, icon: UserPlus, href: `/${role}/courses`, empty: "None pending" },
+    { label: "Unread messages", value: summary?.unreadMessages ?? 0, icon: MessageCircle, href: `/${role}/chat`, empty: "All read" },
+  ];
+  const studentTiles: Tile[] = [
+    { label: "Your courses", value: summary?.courses ?? courses.length, icon: BookOpen, href: `/${role}/courses`, empty: "Join one" },
+    { label: "Assignments due", value: summary?.assignmentsDue ?? 0, icon: FileText, href: `/${role}/assignments`, empty: "Nothing due" },
+    { label: "Quizzes open now", value: summary?.quizzesOpen ?? 0, icon: ClipboardCheck, href: `/${role}/quizzes`, empty: "None open" },
+    { label: "Unread messages", value: summary?.unreadMessages ?? 0, icon: MessageCircle, href: `/${role}/chat`, empty: "All read" },
+  ];
+  const cards =
+    role === "admin" ? adminTiles : role === "teacher" ? teacherTiles : studentTiles;
   return (
     <>
       <SectionTitle
@@ -57,19 +88,33 @@ export function Dashboard({ role }: { role: string }) {
         }
       />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {cards.map(([label, value, Icon]) => (
-          <Card key={label as string}>
-            <div className="flex items-start justify-between">
-              <span className="grid h-10 w-10 place-items-center rounded-lg bg-neon/10 text-neon">
-                <Icon size={18} />
-              </span>
-              <ArrowUpRight size={17} className="text-white/20" />
-            </div>
-            <p className="mt-7 text-3xl font-black">
-              {value as string | number}
-            </p>
-            <p className="mt-1 text-sm text-white/40">{label as string}</p>
-          </Card>
+        {cards.map((tile) => (
+          <Link href={tile.href} key={tile.label}>
+            <Card className="h-full transition hover:-translate-y-1 hover:border-neon/35">
+              <div className="flex items-start justify-between">
+                <span
+                  className={`grid h-10 w-10 place-items-center rounded-lg ${
+                    tile.value > 0
+                      ? "bg-neon/10 text-neon"
+                      : "bg-white/[.04] text-white/25"
+                  }`}
+                >
+                  <tile.icon size={18} />
+                </span>
+                <ArrowUpRight size={17} className="text-white/20" />
+              </div>
+              <p
+                className={`mt-7 text-3xl font-black ${tile.value > 0 ? "" : "text-white/25"}`}
+              >
+                {tile.value}
+              </p>
+              <p className="mt-1 text-sm text-white/40">{tile.label}</p>
+              {/* A zero is easy to misread as "not loaded"; saying what it means is clearer. */}
+              <p className="mt-0.5 text-[11px] text-white/25">
+                {tile.value > 0 ? "Open to view" : tile.empty}
+              </p>
+            </Card>
+          </Link>
         ))}
       </div>
       <div className="mt-8 grid gap-6 lg:grid-cols-[1.4fr_.6fr]">
@@ -110,18 +155,19 @@ export function Dashboard({ role }: { role: string }) {
         <section className="panel p-6">
           <h2 className="font-black">Quick starts</h2>
           <div className="mt-5 space-y-3">
-            {["materials", "assignments", "quizzes", "ai-help"]
-              .filter((item) => role !== "admin" || item === "ai-help")
-              .map((item) => (
-                <Link
-                  className="flex items-center justify-between rounded-lg border border-line px-4 py-3 text-sm font-semibold capitalize text-white/55 hover:border-neon/30 hover:text-neon"
-                  href={`/${role}/${item}`}
-                  key={item}
-                >
-                  {item.replace("-", " ")}
-                  <ArrowUpRight size={15} />
-                </Link>
-              ))}
+            {(role === "admin"
+              ? ["users", "courses", "chat", "ai-help"]
+              : ["materials", "assignments", "quizzes", "ai-help"]
+            ).map((item) => (
+              <Link
+                className="flex items-center justify-between rounded-lg border border-line px-4 py-3 text-sm font-semibold capitalize text-white/55 hover:border-neon/30 hover:text-neon"
+                href={`/${role}/${item}`}
+                key={item}
+              >
+                {item.replace("-", " ")}
+                <ArrowUpRight size={15} />
+              </Link>
+            ))}
           </div>
         </section>
       </div>
