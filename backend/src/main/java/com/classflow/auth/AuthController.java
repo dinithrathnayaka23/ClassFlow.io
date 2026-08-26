@@ -1,8 +1,9 @@
 package com.classflow.auth;
 
 import com.classflow.common.ApiException;
+import com.classflow.notification.NotificationService;
+import com.classflow.security.AuthCookies;
 import com.classflow.security.CurrentUser;
-import com.classflow.security.JwtService;
 import com.classflow.security.UserPrincipal;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -10,13 +11,9 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
-import java.time.Duration;
 import java.util.Map;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseCookie;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -33,20 +30,20 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/auth")
 public class AuthController {
     private final AuthenticationManager authenticationManager;
-    private final JwtService jwt;
+    private final AuthCookies cookies;
     private final CurrentUser currentUser;
-    private final boolean secureCookies;
     private final JdbcClient jdbc;
     private final PasswordEncoder passwords;
+    private final NotificationService notifications;
 
-    public AuthController(AuthenticationManager authenticationManager, JwtService jwt, CurrentUser currentUser,
-                          @Value("${app.secure-cookies}") boolean secureCookies, JdbcClient jdbc, PasswordEncoder passwords) {
+    public AuthController(AuthenticationManager authenticationManager, AuthCookies cookies, CurrentUser currentUser,
+                          JdbcClient jdbc, PasswordEncoder passwords, NotificationService notifications) {
         this.authenticationManager = authenticationManager;
-        this.jwt = jwt;
+        this.cookies = cookies;
         this.currentUser = currentUser;
-        this.secureCookies = secureCookies;
         this.jdbc = jdbc;
         this.passwords = passwords;
+        this.notifications = notifications;
     }
 
     /**
@@ -78,6 +75,8 @@ public class AuthController {
                     .param("name", fullName)
                     .param("role", role)
                     .query(Long.class).single();
+            notifications.notifyAdmins(null, "USER_REGISTERED", "New " + role.toLowerCase() + " signed up",
+                    fullName + " (" + email + ")", role.equals("TEACHER") ? "teachers" : "students");
             return new UserView(id, email, fullName, role, null, null, null, true, null);
         } catch (DuplicateKeyException duplicate) {
             // Two concurrent sign-ups for the same address: the unique index is the source of truth.
@@ -90,8 +89,7 @@ public class AuthController {
         var authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.email().trim().toLowerCase(), request.password()));
         var user = (UserPrincipal) authentication.getPrincipal();
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie("classflow_token", jwt.create(user), true).toString());
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie("classflow_role", user.role().toLowerCase(), false).toString());
+        cookies.issue(user, response);
         return UserView.from(user);
     }
 
@@ -102,19 +100,8 @@ public class AuthController {
 
     @PostMapping("/logout")
     public Map<String, Boolean> logout(HttpServletResponse response) {
-        response.addHeader(HttpHeaders.SET_COOKIE, clear("classflow_token", true).toString());
-        response.addHeader(HttpHeaders.SET_COOKIE, clear("classflow_role", false).toString());
+        cookies.clear(response);
         return Map.of("success", true);
-    }
-
-    private ResponseCookie cookie(String name, String value, boolean httpOnly) {
-        return ResponseCookie.from(name, value).httpOnly(httpOnly).secure(secureCookies).sameSite("Lax")
-                .path("/").maxAge(Duration.ofHours(12)).build();
-    }
-
-    private ResponseCookie clear(String name, boolean httpOnly) {
-        return ResponseCookie.from(name, "").httpOnly(httpOnly).secure(secureCookies).sameSite("Lax")
-                .path("/").maxAge(Duration.ZERO).build();
     }
 
     public record LoginRequest(@NotBlank @Email String email, @NotBlank String password) {}

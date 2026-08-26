@@ -1,5 +1,6 @@
 package com.classflow.security;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import org.springframework.security.core.GrantedAuthority;
@@ -7,7 +8,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 public record UserPrincipal(Long id, String email, String password, String fullName, String role,
-                            String avatarUrl, boolean active)
+                            String avatarUrl, boolean active, Instant passwordChangedAt)
         implements UserDetails {
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

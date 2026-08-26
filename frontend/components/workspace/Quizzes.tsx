@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   Clock3,
+  ListChecks,
   Pencil,
   Play,
   Plus,
@@ -13,7 +14,8 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Card, Empty, Notice, SectionTitle } from "@/components/ui";
-import { CoursePicker, Field, Modal, formatDate, useCourses } from "./shared";
+import { QuizReview } from "./QuizReview";
+import { CoursePicker, Field, JoinCourseNotice, Modal, formatDate, useCourses } from "./shared";
 
 type Quiz = {
   id: number;
@@ -112,7 +114,7 @@ function toDraft(question: QuizDetail["questions"][number]): DraftQuestion {
 }
 
 export function Quizzes({ role }: { role: string }) {
-  const { courses } = useCourses();
+  const { courses, loading: coursesLoading } = useCourses();
   const [courseId, setCourseId] = useState<number>();
   const [items, setItems] = useState<Quiz[]>([]);
   const [open, setOpen] = useState(false);
@@ -127,6 +129,11 @@ export function Quizzes({ role }: { role: string }) {
   const [editing, setEditing] = useState<Quiz | null>(null);
   const [questionsLocked, setQuestionsLocked] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [reviewing, setReviewing] = useState<{
+    quizId: number;
+    title: string;
+    studentId?: number;
+  } | null>(null);
   const [attemptsFor, setAttemptsFor] = useState<Quiz | null>(null);
   const [attempts, setAttempts] = useState<AttemptSummary[]>([]);
   const [busy, setBusy] = useState(false);
@@ -377,6 +384,17 @@ export function Quizzes({ role }: { role: string }) {
       setSubmitting(false);
     }
   }
+  // Nothing here exists for a student until they join a course, and the API refuses
+  // it all in the meantime. Explain the empty screen rather than showing bare controls.
+  if (role === "student" && !coursesLoading && !courses.length) {
+    return (
+      <>
+        <SectionTitle eyebrow={"Timed assessments"} title={"Quizzes"} />
+        <JoinCourseNotice role={role} what={"quizzes"} />
+      </>
+    );
+  }
+
   return (
     <>
       <SectionTitle
@@ -551,9 +569,20 @@ export function Quizzes({ role }: { role: string }) {
                 )}
 
                 {quiz.submittedAt ? (
-                  <p className="mt-5 rounded-lg bg-neon/10 p-3 font-bold text-neon">
-                    Score: {quiz.score}/{quiz.maxScore}
-                  </p>
+                  <>
+                    <p className="mt-5 rounded-lg bg-neon/10 p-3 font-bold text-neon">
+                      Score: {quiz.score}/{quiz.maxScore}
+                    </p>
+                    <button
+                      className="btn-secondary mt-3 w-full"
+                      onClick={() =>
+                        setReviewing({ quizId: quiz.id, title: quiz.title })
+                      }
+                    >
+                      <ListChecks size={15} />
+                      Review answers
+                    </button>
+                  </>
                 ) : role === "student" ? (
                   upcoming ? (
                     <p className="mt-5 rounded-lg border border-line p-3 text-sm text-white/45">
@@ -780,6 +809,15 @@ export function Quizzes({ role }: { role: string }) {
         </form>
       </Modal>
 
+      {reviewing && (
+        <QuizReview
+          quizId={reviewing.quizId}
+          studentId={reviewing.studentId}
+          title={reviewing.title}
+          onClose={() => setReviewing(null)}
+        />
+      )}
+
       <Modal
         title={attemptsFor ? `Attempts: ${attemptsFor.title}` : "Attempts"}
         open={Boolean(attemptsFor)}
@@ -807,19 +845,39 @@ export function Quizzes({ role }: { role: string }) {
                       : `In progress since ${formatDate(attempt.startedAt)}`}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  className="btn-secondary shrink-0 px-3 py-1.5 text-xs"
-                  onClick={() =>
-                    attemptsFor &&
-                    reopenAttempt(attemptsFor.id, attempt.studentId)
-                  }
-                  disabled={busy}
-                  title="Clear this attempt so the student can sit the quiz again"
-                >
-                  <RotateCcw size={13} />
-                  Reopen
-                </button>
+                <div className="flex shrink-0 gap-2">
+                  {attempt.submittedAt && (
+                    <button
+                      type="button"
+                      className="btn-secondary px-3 py-1.5 text-xs"
+                      onClick={() =>
+                        attemptsFor &&
+                        setReviewing({
+                          quizId: attemptsFor.id,
+                          title: `${attempt.studentName} - ${attemptsFor.title}`,
+                          studentId: attempt.studentId,
+                        })
+                      }
+                      title="See how this student answered"
+                    >
+                      <ListChecks size={13} />
+                      Review
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="btn-secondary px-3 py-1.5 text-xs"
+                    onClick={() =>
+                      attemptsFor &&
+                      reopenAttempt(attemptsFor.id, attempt.studentId)
+                    }
+                    disabled={busy}
+                    title="Clear this attempt so the student can sit the quiz again"
+                  >
+                    <RotateCcw size={13} />
+                    Reopen
+                  </button>
+                </div>
               </div>
             ))}
             <p className="pt-1 text-xs leading-5 text-white/35">

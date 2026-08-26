@@ -1,0 +1,11 @@
+-- Records when each account's password last changed, so that changing it can cut off
+-- sessions that were signed in with the old one.
+--
+-- JWTs here are stateless and live for hours, so without this a password reset would leave
+-- an already-issued token working until it expired - exactly the session an admin resets a
+-- password to get rid of. JwtAuthenticationFilter compares a token's issued-at against this
+-- column and rejects anything older.
+--
+-- Existing rows default to NOW(): every token issued before this migration ran is treated
+-- as stale, so everyone signs in once more and then carries on as normal.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW();

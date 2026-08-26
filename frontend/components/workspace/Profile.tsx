@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { Camera, Pencil, Save, Trash2, UserRound, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { Notice, SectionTitle } from "@/components/ui";
+import { ChangePassword } from "./ChangePassword";
 import { Field } from "./shared";
 
 type ProfileView = {
@@ -250,6 +251,7 @@ export function Profile() {
           </section>
         )}
       </div>
+      <ChangePassword />
     </>
   );
 }

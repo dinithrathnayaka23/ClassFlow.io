@@ -69,9 +69,10 @@ There are no seeded or demo accounts, and no credentials are stored in this repo
 
 ## Local Development
 
-1) Create and initialize the database (schema):
-- Create a PostgreSQL database (default: `classflow`)
-- Execute: `db/schema.sql`
+1) Create the database:
+- Create an empty PostgreSQL database (default: `classflow`) and point `DB_URL` at it.
+- Flyway builds and migrates the schema on startup, so there is nothing to run by hand.
+  See `db/README.md` for the details.
 
 2) Run the API (Java 21 and Maven required):
 ```bash

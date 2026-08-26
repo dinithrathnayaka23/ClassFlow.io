@@ -22,6 +22,20 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
+        <!--
+            Restarts the running application whenever target/classes changes, so a rebuilt
+            backend does not keep serving the previous build. Without it the web client can
+            silently get ahead of the API and calls fail with a confusing 404 or 405.
+
+            Development only: it is optional, so it never reaches anything that depends on
+            this module, and spring-boot-maven-plugin already excludes it when repackaging
+            the executable jar.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <optional>true</optional>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>

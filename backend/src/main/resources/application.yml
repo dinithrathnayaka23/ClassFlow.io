@@ -11,8 +11,11 @@ spring:
     baseline-on-migrate: true
   servlet:
     multipart:
-      max-file-size: 20MB
-      max-request-size: 20MB
+      # Per file, and for the whole request. A submission may carry several files at once,
+      # so the request allowance is deliberately a multiple of the per-file one; scanned
+      # coursework runs large, which is what the old shared 20MB cap kept rejecting.
+      max-file-size: ${MAX_FILE_SIZE:40MB}
+      max-request-size: ${MAX_REQUEST_SIZE:160MB}
 server:
   port: ${SERVER_PORT:8080}
   forward-headers-strategy: framework

@@ -4,7 +4,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { ArrowLeft, MessageSquare, Plus, Send } from "lucide-react";
 import { api } from "@/lib/api";
 import { Card, Empty, Notice, SectionTitle } from "@/components/ui";
-import { CoursePicker, Field, Modal, formatDate, useCourses } from "./shared";
+import { CoursePicker, Field, JoinCourseNotice, Modal, formatDate, useCourses } from "./shared";
 
 type Topic = {
   id: number;
@@ -23,7 +23,7 @@ type Post = {
 };
 
 export function Forums({ role }: { role: string }) {
-  const { courses } = useCourses();
+  const { courses, loading: coursesLoading } = useCourses();
   const [courseId, setCourseId] = useState<number>();
   const [topics, setTopics] = useState<Topic[]>([]);
   const [active, setActive] = useState<Topic>();
@@ -83,6 +83,17 @@ export function Forums({ role }: { role: string }) {
       );
     }
   }
+  // Nothing here exists for a student until they join a course, and the API refuses
+  // it all in the meantime. Explain the empty screen rather than showing bare controls.
+  if (role === "student" && !coursesLoading && !courses.length) {
+    return (
+      <>
+        <SectionTitle eyebrow={"Course conversations"} title={"Forums"} />
+        <JoinCourseNotice role={role} what={"the course forum"} />
+      </>
+    );
+  }
+
   return (
     <>
       <SectionTitle

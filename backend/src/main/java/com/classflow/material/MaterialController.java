@@ -2,6 +2,7 @@ package com.classflow.material;
 
 import com.classflow.common.CourseAccess;
 import com.classflow.common.FileStorage;
+import com.classflow.notification.NotificationService;
 import com.classflow.security.CurrentUser;
 import jakarta.validation.constraints.NotBlank;
 import java.time.OffsetDateTime;
@@ -19,12 +20,15 @@ public class MaterialController {
     private final CurrentUser currentUser;
     private final CourseAccess access;
     private final FileStorage files;
+    private final NotificationService notifications;
 
-    public MaterialController(JdbcClient jdbc, CurrentUser currentUser, CourseAccess access, FileStorage files) {
+    public MaterialController(JdbcClient jdbc, CurrentUser currentUser, CourseAccess access, FileStorage files,
+                              NotificationService notifications) {
         this.jdbc = jdbc;
         this.currentUser = currentUser;
         this.access = access;
         this.files = files;
+        this.notifications = notifications;
     }
 
     @GetMapping
@@ -56,6 +60,8 @@ public class MaterialController {
                 """).param("course", courseId).param("title", title).param("type", type)
                 .param("url", url == null ? "" : url).param("fileName", fileName).param("user", user.id())
                 .query(Long.class).single();
+        notifications.notifyCourseStudents(courseId, user.id(), "MATERIAL_ADDED",
+                "New material: " + title, null, "materials");
         return get(id);
     }
 

@@ -2,6 +2,7 @@ package com.classflow.forum;
 
 import com.classflow.common.ApiException;
 import com.classflow.common.CourseAccess;
+import com.classflow.notification.NotificationService;
 import com.classflow.security.CurrentUser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -18,11 +19,14 @@ public class ForumController {
     private final JdbcClient jdbc;
     private final CurrentUser currentUser;
     private final CourseAccess access;
+    private final NotificationService notifications;
 
-    public ForumController(JdbcClient jdbc, CurrentUser currentUser, CourseAccess access) {
+    public ForumController(JdbcClient jdbc, CurrentUser currentUser, CourseAccess access,
+                           NotificationService notifications) {
         this.jdbc = jdbc;
         this.currentUser = currentUser;
         this.access = access;
+        this.notifications = notifications;
     }
 
     @GetMapping
@@ -46,6 +50,8 @@ public class ForumController {
                 VALUES (:course, :title, :body, :user) RETURNING id
                 """).param("course", request.courseId()).param("title", request.title())
                 .param("body", request.body()).param("user", user.id()).query(Long.class).single();
+        notifications.notifyCourseStudents(request.courseId(), user.id(), "FORUM_TOPIC",
+                "New discussion: " + request.title(), null, "forums");
         return topic(id);
     }
 

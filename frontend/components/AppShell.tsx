@@ -20,6 +20,8 @@ import {
   X,
 } from "lucide-react";
 import { Brand } from "@/components/Brand";
+import { NotificationBell } from "@/components/NotificationBell";
+import { useUnreadMessages } from "@/components/workspace/chat/useUnreadMessages";
 import { api, User } from "@/lib/api";
 
 const iconMap = {
@@ -39,7 +41,16 @@ const iconMap = {
 };
 
 const links: Record<string, string[]> = {
-  admin: ["dashboard", "users", "teachers", "students", "courses", "profile"],
+  admin: [
+    "dashboard",
+    "users",
+    "teachers",
+    "students",
+    "courses",
+    "chat",
+    "ai-help",
+    "profile",
+  ],
   teacher: [
     "dashboard",
     "courses",
@@ -78,6 +89,7 @@ export function AppShell({
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [open, setOpen] = useState(false);
+  const unreadMessages = useUnreadMessages();
 
   useEffect(() => {
     api<User>("/auth/me")
@@ -132,7 +144,7 @@ export function AppShell({
         </button>
       </div>
 
-      <div className="sidebar-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3">
+      <div className="neon-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-3">
         <p className="mt-4 px-2 text-[10px] font-bold uppercase tracking-[.25em] text-white/30">
           {role} workspace
         </p>
@@ -152,9 +164,19 @@ export function AppShell({
                 className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition ${active ? "bg-neon text-ink" : "text-white/50 hover:bg-white/5 hover:text-white"}`}
               >
                 <Icon size={17} className="shrink-0" />
-                <span className="truncate">
+                <span className="flex-1 truncate">
                   {titles[item] || item[0].toUpperCase() + item.slice(1)}
                 </span>
+                {item === "chat" && unreadMessages > 0 && (
+                  <span
+                    aria-label={`${unreadMessages} unread messages`}
+                    className={`grid h-5 min-w-5 shrink-0 place-items-center rounded-full px-1.5 text-[11px] font-black ${
+                      active ? "bg-ink text-neon" : "bg-neon text-ink"
+                    }`}
+                  >
+                    {unreadMessages > 99 ? "99+" : unreadMessages}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -237,7 +259,10 @@ export function AppShell({
           <p className="hidden text-xs font-bold uppercase tracking-[.25em] text-white/30 sm:block">
             Learn clearly. Move confidently.
           </p>
-          <span className="badge shrink-0">{role}</span>
+          <div className="ml-auto flex items-center gap-2 sm:ml-0">
+            <NotificationBell role={role} />
+            <span className="badge shrink-0">{role}</span>
+          </div>
         </header>
         <main className="mx-auto max-w-7xl p-4 sm:p-5 lg:p-8">{children}</main>
       </div>
