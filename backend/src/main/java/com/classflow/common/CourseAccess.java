@@ -18,12 +18,23 @@ public class CourseAccess {
         var allowed = "TEACHER".equals(user.role())
                 ? jdbc.sql("SELECT EXISTS(SELECT 1 FROM courses WHERE id=:id AND teacher_id=:user)")
                     .param("id", courseId).param("user", user.id()).query(Boolean.class).single()
-                : jdbc.sql("SELECT EXISTS(SELECT 1 FROM course_enrollments WHERE course_id=:id AND student_id=:user)")
-                    .param("id", courseId).param("user", user.id()).query(Boolean.class).single();
+                // A pending or rejected request is not membership: until a teacher approves
+                // it, the student must see no more of the course than a stranger would.
+                : jdbc.sql("""
+                        SELECT EXISTS(SELECT 1 FROM course_enrollments
+                        WHERE course_id=:id AND student_id=:user AND status='APPROVED')
+                        """).param("id", courseId).param("user", user.id()).query(Boolean.class).single();
         if (!allowed) throw new ApiException(HttpStatus.FORBIDDEN, "You do not have access to this course");
     }
 
     public void requireManage(Long courseId, UserPrincipal user) {
+        // An archived course is frozen for everyone, admins included: restoring it is a
+        // deliberate step rather than a side effect of editing something inside it.
+        var archived = jdbc.sql("SELECT EXISTS(SELECT 1 FROM courses WHERE id=:id AND NOT active)")
+                .param("id", courseId).query(Boolean.class).single();
+        if (archived) {
+            throw new ApiException(HttpStatus.CONFLICT, "This course is archived. Restore it before making changes.");
+        }
         if ("ADMIN".equals(user.role())) return;
         if (!"TEACHER".equals(user.role())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Only teachers can manage course content");

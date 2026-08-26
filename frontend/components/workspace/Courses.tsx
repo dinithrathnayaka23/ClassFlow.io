@@ -13,8 +13,12 @@ import {
   Users as UsersIcon,
   X,
 } from "lucide-react";
-import { api, Course } from "@/lib/api";
+import { useRouter } from "next/navigation";
+import { api, Course, Page } from "@/lib/api";
 import { Card, Empty, Notice, SectionTitle } from "@/components/ui";
+import { CourseAdminPanel, Teacher } from "./CourseAdmin";
+import { CourseCatalogue } from "./CourseCatalogue";
+import { EnrollmentRequests } from "./EnrollmentRequests";
 import { Field, Modal, useCourses } from "./shared";
 
 type Lesson = {
@@ -31,6 +35,7 @@ export function Courses({
   role: string;
   courseId?: number;
 }) {
+  const router = useRouter();
   const { courses, reload } = useCourses();
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
@@ -42,7 +47,16 @@ export function Courses({
   const [editingId, setEditingId] = useState<number | null>(null);
   const [confirmId, setConfirmId] = useState<number | null>(null);
   const [busyId, setBusyId] = useState<number | null>(null);
+  // A course is run by a teacher, so an admin has to name one. Teachers create
+  // their own courses and never see this list.
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
   const course = courses.find((item) => item.id === courseId);
+  useEffect(() => {
+    if (role !== "admin") return;
+    api<Page<Teacher>>("/users?role=TEACHER&size=100").then((data) =>
+      setTeachers(data.items),
+    );
+  }, [role]);
   useEffect(() => {
     if (courseId)
       api<Lesson[]>(`/courses/${courseId}/lessons`).then(setLessons);
@@ -214,7 +228,9 @@ export function Courses({
                           </div>
                         )}
                       </div>
-                      {role !== "student" && confirmId !== lesson.id && (
+                      {role !== "student" &&
+                        course?.active !== false &&
+                        confirmId !== lesson.id && (
                         <div className="flex shrink-0 items-start gap-1">
                           <button
                             type="button"
@@ -262,7 +278,18 @@ export function Courses({
                 {course?.description}
               </p>
             </Card>
-            {role !== "student" && (
+            {role !== "student" && courseId && (
+              <EnrollmentRequests courseId={courseId} onDecided={reload} />
+            )}
+            {role === "admin" && course && (
+              <CourseAdminPanel
+                course={course}
+                teachers={teachers}
+                onChanged={reload}
+                onDeleted={() => router.replace(`/${role}/courses`)}
+              />
+            )}
+            {role !== "student" && course?.active !== false && (
               <form className="panel space-y-4 p-5" onSubmit={addLesson}>
                 <h3 className="font-black">Add lesson</h3>
                 <Notice error={lessonError} />
@@ -303,9 +330,16 @@ export function Courses({
           {courses.map((course) => (
             <Link href={`/${role}/courses/${course.id}`} key={course.id}>
               <Card className="h-full transition hover:-translate-y-1 hover:border-neon/35">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="badge">{course.code}</span>
-                  <ArrowRight size={17} className="text-white/25" />
+                  <div className="flex items-center gap-2">
+                    {!course.active && (
+                      <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-200">
+                        Archived
+                      </span>
+                    )}
+                    <ArrowRight size={17} className="text-white/25" />
+                  </div>
                 </div>
                 <h2 className="mt-6 text-xl font-black">{course.title}</h2>
                 <p className="mt-3 line-clamp-2 text-sm leading-6 text-white/40">
@@ -324,10 +358,18 @@ export function Courses({
         </div>
       ) : (
         <Empty
-          title="No courses available"
-          text="New courses will show here."
+          title={
+            role === "student" ? "You have not joined a course yet" : "No courses available"
+          }
+          text={
+            role === "student"
+              ? "Ask to join one below. Once its teacher approves, its materials, assignments, quizzes and forum open up."
+              : "New courses will show here."
+          }
         />
       )}
+      {/* The catalogue renders nothing when there is nothing left to join. */}
+      {role === "student" && <CourseCatalogue onEnrolled={reload} />}
       <Modal title="Create a course" open={open} onClose={() => setOpen(false)}>
         <Notice error={error} />
         <form className="space-y-4" onSubmit={create}>
@@ -342,6 +384,25 @@ export function Courses({
               <input className="input" name="subject" required />
             </Field>
           </div>
+          {role === "admin" && (
+            <Field label="Teacher">
+              <select className="input" name="teacherId" required defaultValue="">
+                <option value="" disabled>
+                  Choose a teacher
+                </option>
+                {teachers.map((teacher) => (
+                  <option key={teacher.id} value={teacher.id}>
+                    {teacher.fullName}
+                  </option>
+                ))}
+              </select>
+              {!teachers.length && (
+                <p className="mt-2 text-xs text-white/35">
+                  No active teachers yet. Add one from the Teachers page first.
+                </p>
+              )}
+            </Field>
+          )}
           <Field label="Description">
             <textarea className="input" name="description" rows={4} />
           </Field>

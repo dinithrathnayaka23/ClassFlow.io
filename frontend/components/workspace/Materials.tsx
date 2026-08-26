@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { Empty, Notice, SectionTitle } from "@/components/ui";
-import { CoursePicker, Field, Modal, formatDate, useCourses } from "./shared";
+import { CoursePicker, Field, JoinCourseNotice, Modal, formatDate, useCourses } from "./shared";
 
 type Material = {
   id: number;
@@ -30,7 +30,7 @@ const icons = {
 };
 
 export function Materials({ role }: { role: string }) {
-  const { courses } = useCourses();
+  const { courses, loading: coursesLoading } = useCourses();
   const [courseId, setCourseId] = useState<number>();
   const [items, setItems] = useState<Material[]>([]);
   const [open, setOpen] = useState(false);
@@ -59,6 +59,17 @@ export function Materials({ role }: { role: string }) {
       setError(e instanceof Error ? e.message : "Could not add material");
     }
   }
+  // Nothing here exists for a student until they join a course, and the API refuses
+  // it all in the meantime. Explain the empty screen rather than showing bare controls.
+  if (role === "student" && !coursesLoading && !courses.length) {
+    return (
+      <>
+        <SectionTitle eyebrow={"Course library"} title={"Materials"} />
+        <JoinCourseNotice role={role} what={"materials"} />
+      </>
+    );
+  }
+
   return (
     <>
       <SectionTitle
