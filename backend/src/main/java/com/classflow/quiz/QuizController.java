@@ -2,6 +2,7 @@ package com.classflow.quiz;
 
 import com.classflow.common.ApiException;
 import com.classflow.common.CourseAccess;
+import com.classflow.notification.NotificationService;
 import com.classflow.security.CurrentUser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -21,11 +22,14 @@ public class QuizController {
     private final JdbcClient jdbc;
     private final CurrentUser currentUser;
     private final CourseAccess access;
+    private final NotificationService notifications;
 
-    public QuizController(JdbcClient jdbc, CurrentUser currentUser, CourseAccess access) {
+    public QuizController(JdbcClient jdbc, CurrentUser currentUser, CourseAccess access,
+                          NotificationService notifications) {
         this.jdbc = jdbc;
         this.currentUser = currentUser;
         this.access = access;
+        this.notifications = notifications;
     }
 
     @GetMapping
@@ -58,6 +62,8 @@ public class QuizController {
                 .param("starts", request.startsAt()).param("ends", request.endsAt()).param("user", user.id())
                 .query(Long.class).single();
         writeQuestions(quizId, request.questions());
+        notifications.notifyCourseStudents(request.courseId(), user.id(), "QUIZ_POSTED",
+                "New quiz: " + request.title(), "Opens " + request.startsAt().toLocalDate(), "quizzes");
         return get(quizId, user.id());
     }
 
@@ -185,6 +191,61 @@ public class QuizController {
         return result;
     }
 
+    /**
+     * The marked paper: every question with the student's choice, whether it was right, and
+     * which option was correct.
+     *
+     * Only readable once that student has submitted, so the correct answers cannot be pulled
+     * out mid-attempt. A teacher may review any student's paper on their own course; a
+     * student may only ever review their own.
+     */
+    @GetMapping("/{id}/review")
+    public QuizReview review(@PathVariable Long id,
+                             @RequestParam(required = false) Long studentId,
+                             Authentication authentication) {
+        var user = currentUser.require(authentication);
+        var quiz = get(id, user.id());
+        Long target;
+        if (studentId == null || studentId.equals(user.id())) {
+            access.requireView(quiz.courseId(), user);
+            target = user.id();
+        } else {
+            access.requireManage(quiz.courseId(), user);
+            target = studentId;
+        }
+
+        var attempt = jdbc.sql("""
+                SELECT id, quiz_id, student_id, started_at, submitted_at, score, max_score
+                FROM quiz_attempts WHERE quiz_id=:quiz AND student_id=:student
+                """).param("quiz", id).param("student", target).query(AttemptView.class).optional()
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "There is no attempt to review"));
+        if (attempt.submittedAt() == null) {
+            throw new ApiException(HttpStatus.CONFLICT, "Submit the quiz before reviewing your answers");
+        }
+
+        var questions = jdbc.sql("""
+                SELECT q.id, q.prompt, q.points, q.position,
+                       a.selected_option_id, COALESCE(a.correct, FALSE) AS correct
+                FROM quiz_questions q
+                LEFT JOIN quiz_attempt_answers a ON a.question_id=q.id AND a.attempt_id=:attempt
+                WHERE q.quiz_id=:quiz ORDER BY q.position, q.id
+                """).param("attempt", attempt.id()).param("quiz", id).query(ReviewRow.class).list();
+
+        var reviewed = questions.stream().map(row -> {
+            var options = jdbc.sql("""
+                    SELECT id, text, correct FROM quiz_options WHERE question_id=:question ORDER BY id
+                    """).param("question", row.id()).query(OptionView.class).list().stream()
+                    .map(option -> new ReviewOption(option.id(), option.text(),
+                            Boolean.TRUE.equals(option.correct()),
+                            option.id().equals(row.selectedOptionId())))
+                    .toList();
+            return new ReviewQuestion(row.id(), row.prompt(), row.points(), row.selectedOptionId(),
+                    row.correct(), options);
+        }).toList();
+
+        return new QuizReview(quiz, attempt.score(), attempt.maxScore(), attempt.submittedAt(), reviewed);
+    }
+
     @PostMapping("/{id}/start")
     public AttemptView start(@PathVariable Long id, Authentication authentication) {
         var user = currentUser.require(authentication);
@@ -271,6 +332,15 @@ public class QuizController {
                            OffsetDateTime startsAt, OffsetDateTime endsAt, Integer score, Integer maxScore,
                            OffsetDateTime submittedAt, OffsetDateTime startedAt, long questionCount) {}
     public record QuestionView(Long id, String prompt, int points, int position) {}
+
+    /** One row of the review query: the question plus what this attempt answered on it. */
+    private record ReviewRow(Long id, String prompt, int points, int position, Long selectedOptionId,
+                             boolean correct) {}
+    public record ReviewOption(Long id, String text, boolean correct, boolean selected) {}
+    public record ReviewQuestion(Long id, String prompt, int points, Long selectedOptionId, boolean correct,
+                                 List<ReviewOption> options) {}
+    public record QuizReview(QuizView quiz, Integer score, Integer maxScore, OffsetDateTime submittedAt,
+                             List<ReviewQuestion> questions) {}
     public record OptionView(Long id, String text, Boolean correct) {}
     public record SubmitRequest(List<AnswerRequest> answers) {}
     public record AnswerRequest(Long questionId, Long optionId) {}
