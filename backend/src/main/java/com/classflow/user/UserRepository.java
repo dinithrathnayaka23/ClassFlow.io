@@ -17,14 +17,16 @@ public class UserRepository {
 
     public Optional<UserPrincipal> findPrincipalByEmail(String email) {
         return jdbc.sql("""
-                SELECT id, email, password_hash AS password, full_name, role, avatar_url, active
+                SELECT id, email, password_hash AS password, full_name, role, avatar_url, active,
+                       password_changed_at
                 FROM users WHERE LOWER(email) = LOWER(:email)
                 """).param("email", email).query(UserPrincipal.class).optional();
     }
 
     public UserPrincipal require(Long id) {
         return jdbc.sql("""
-                SELECT id, email, password_hash AS password, full_name, role, avatar_url, active
+                SELECT id, email, password_hash AS password, full_name, role, avatar_url, active,
+                       password_changed_at
                 FROM users WHERE id = :id
                 """).param("id", id).query(UserPrincipal.class).optional()
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));

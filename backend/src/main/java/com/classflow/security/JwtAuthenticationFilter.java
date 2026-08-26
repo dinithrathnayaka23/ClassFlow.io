@@ -7,6 +7,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -29,15 +30,31 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         var token = token(request);
         if (token != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
-                users.findPrincipalByEmail(jwt.subject(token)).filter(UserPrincipal::active).ifPresent(user -> {
-                    var auth = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
-                    SecurityContextHolder.getContext().setAuthentication(auth);
-                });
+                var issuedAt = jwt.issuedAt(token);
+                users.findPrincipalByEmail(jwt.subject(token))
+                        .filter(UserPrincipal::active)
+                        .filter(user -> currentForPassword(user, issuedAt))
+                        .ifPresent(user -> {
+                            var auth = new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities());
+                            SecurityContextHolder.getContext().setAuthentication(auth);
+                        });
             } catch (RuntimeException ignored) {
                 // Invalid and expired tokens are handled as unauthenticated requests.
             }
         }
         chain.doFilter(request, response);
+    }
+
+    /**
+     * Rejects a token that was minted before the account's current password.
+     *
+     * A JWT's issued-at is stored to the second, while the column keeps sub-second precision,
+     * so a token minted in the same second as the change would otherwise look stale. The
+     * second of leeway absorbs exactly that truncation.
+     */
+    private boolean currentForPassword(UserPrincipal user, Instant issuedAt) {
+        var changedAt = user.passwordChangedAt();
+        return changedAt == null || !issuedAt.isBefore(changedAt.minusSeconds(1));
     }
 
     private String token(HttpServletRequest request) {

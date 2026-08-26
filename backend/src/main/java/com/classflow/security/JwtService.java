@@ -1,5 +1,6 @@
 package com.classflow.security;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import java.nio.charset.StandardCharsets;
@@ -34,6 +35,15 @@ public class JwtService {
     }
 
     public String subject(String token) {
-        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload().getSubject();
+        return claims(token).getSubject();
+    }
+
+    /** When this token was minted, used to reject sessions older than the current password. */
+    public Instant issuedAt(String token) {
+        return claims(token).getIssuedAt().toInstant();
+    }
+
+    private Claims claims(String token) {
+        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
     }
 }
