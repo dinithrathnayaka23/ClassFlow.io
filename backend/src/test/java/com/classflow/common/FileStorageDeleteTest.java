@@ -14,7 +14,7 @@ import org.springframework.mock.web.MockMultipartFile;
 class FileStorageDeleteTest {
     @Test
     void deletesAFilePreviouslySaved(@TempDir Path root) throws IOException {
-        var storage = new FileStorage(root.toString());
+        var storage = new LocalFileStorage(root.toString());
         var stored = storage.save(new MockMultipartFile("file", "notes.pdf", "application/pdf", "hello".getBytes()),
                 "materials");
         var onDisk = root.resolve(stored.url().substring("/uploads/".length()));
@@ -27,7 +27,7 @@ class FileStorageDeleteTest {
 
     @Test
     void ignoresUrlsThatAreNotStoredFiles(@TempDir Path root) throws IOException {
-        var storage = new FileStorage(root.toString());
+        var storage = new LocalFileStorage(root.toString());
 
         // An external material link, a null column and a missing file must all be no-ops
         // rather than failures: cleanup runs after the database change has committed.
@@ -40,7 +40,7 @@ class FileStorageDeleteTest {
     @Test
     void refusesToEscapeTheUploadRoot(@TempDir Path root) throws IOException {
         var outside = Files.writeString(root.resolve("secret.txt"), "keep me");
-        var storage = new FileStorage(root.resolve("uploads").toString());
+        var storage = new LocalFileStorage(root.resolve("uploads").toString());
 
         storage.delete("/uploads/../secret.txt");
 

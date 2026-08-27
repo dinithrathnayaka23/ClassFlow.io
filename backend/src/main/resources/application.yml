@@ -24,6 +24,15 @@ app:
   jwt-secret: ${JWT_SECRET}
   jwt-expiration-hours: ${JWT_EXPIRATION_HOURS:12}
   upload-dir: ${UPLOAD_DIR:./uploads}
+  storage:
+    # Set a bucket to store uploads in S3-compatible object storage instead of the local
+    # disk. Required in any hosted environment: container filesystems do not survive a
+    # redeploy, so submissions and attachments would be lost.
+    bucket: ${S3_BUCKET:}
+    endpoint: ${S3_ENDPOINT:}
+    region: ${S3_REGION:auto}
+    access-key: ${S3_ACCESS_KEY:}
+    secret-key: ${S3_SECRET_KEY:}
   secure-cookies: ${SECURE_COOKIES:false}
   allowed-origin: ${ALLOWED_ORIGIN:http://localhost:3000}
   # The single ADMIN account, provisioned on startup by AdminBootstrap.

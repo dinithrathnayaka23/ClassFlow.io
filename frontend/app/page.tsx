@@ -17,6 +17,7 @@ import {
 import { Brand } from "@/components/Brand";
 import { LiquidGlassCard } from "@/components/ui/liquid-glass";
 import { VantaBirdsBackground } from "@/components/VantaBirdsBackground";
+import { getPublicStats } from "@/lib/publicStats";
 
 const features = [
   {
@@ -73,7 +74,8 @@ const socialLinks = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const stats = await getPublicStats();
   return (
     <main className="relative isolate min-h-screen overflow-hidden bg-ink">
       <VantaBirdsBackground />
@@ -142,18 +144,33 @@ export default function Home() {
                 Platform overview
               </p>
             </div>
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
-              {[
-                ["500+", "Active students"],
-                ["25+", "Courses running"],
-                ["98%", "Uptime"],
-              ].map(([value, label]) => (
-                <div className="card" key={label}>
-                  <p className="text-lg sm:text-2xl font-black text-neon">{value}</p>
-                  <p className="mt-1 text-xs text-white/45">{label}</p>
-                </div>
-              ))}
-            </div>
+            {stats ? (
+              <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
+                {(
+                  [
+                    [stats.students, "Students enrolled", "Student enrolled"],
+                    [stats.courses, "Courses running", "Course running"],
+                    [stats.teachers, "Teachers guiding", "Teacher guiding"],
+                  ] as Array<[number, string, string]>
+                ).map(([value, plural, singular]) => (
+                  <div className="card" key={plural}>
+                    <p className="text-lg sm:text-2xl font-black text-neon">
+                      {value.toLocaleString("en")}
+                    </p>
+                    <p className="mt-1 text-xs text-white/45">
+                      {value === 1 ? singular : plural}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              /* The API is unreachable. Saying what the platform does beats printing
+                 zeroes that would read as an empty product. */
+              <p className="card text-xs leading-5 text-white/45">
+                Courses, materials, assignments, quizzes and messaging for every
+                student, teacher and administrator in one workspace.
+              </p>
+            )}
             <div className="mt-4 card">
               <p className="text-xs font-bold uppercase tracking-widest text-white/35">
                 Why ClassFlow
