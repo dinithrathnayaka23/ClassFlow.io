@@ -14,7 +14,7 @@ class FileStorageTest {
 
     @Test
     void storesFileOutsideDatabaseAndReturnsPublicPath() throws Exception {
-        var storage = new FileStorage(tempDir.toString());
+        var storage = new LocalFileStorage(tempDir.toString());
         var file = new MockMultipartFile("file", "my answer.pdf", "application/pdf", "answer".getBytes());
 
         var stored = storage.save(file, "submissions");
