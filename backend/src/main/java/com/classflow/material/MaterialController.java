@@ -70,7 +70,14 @@ public class MaterialController {
     public void delete(@PathVariable Long id, Authentication authentication) {
         var course = jdbc.sql("SELECT course_id FROM materials WHERE id=:id").param("id", id).query(Long.class).single();
         access.requireManage(course, currentUser.require(authentication));
+        // Read the URL before the row goes, or the file can never be found again. A LINK
+        // material points at somewhere external, which FileStorage ignores by design.
+        var url = jdbc.sql("SELECT url FROM materials WHERE id=:id").param("id", id)
+                .query(String.class).optional().orElse(null);
         jdbc.sql("DELETE FROM materials WHERE id=:id").param("id", id).update();
+        // After the row, so a failed delete leaves an orphaned file rather than a row
+        // pointing at a file that is already gone.
+        files.delete(url);
     }
 
     private MaterialView get(Long id) {
