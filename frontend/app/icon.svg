@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!--
+    Favicon derived from the ClassFlow mark in components/Brand.tsx, deliberately not a copy
+    of it. At 16px the original's glow filter and its thin flow lines collapse into a smudge,
+    so this keeps only the two shapes that still read at that size - the mortarboard and the
+    arc beneath it - with heavier strokes to survive the downscale.
+
+    The dark tile matters: the mark is mint green, which disappears against a light browser
+    tab. Carrying its own ground makes it legible in either theme.
+  -->
+  <defs>
+    <linearGradient id="cf-mark" x1="6" y1="10" x2="58" y2="54" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#B6FFD0"/>
+      <stop offset=".45" stop-color="#55F991"/>
+      <stop offset="1" stop-color="#2CEB78"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="64" height="64" rx="14" fill="#070b09"/>
+
+  <g transform="translate(-8.86 0.44) scale(0.619)"
+     fill="none"
+     stroke="url(#cf-mark)"
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     stroke-width="8">
+    <path d="M34 35 66 19l42 20-42 20-42-20 10-4Z"/>
+    <path d="M41 50v14c0 11 11 19 25 19s25-8 25-19V50"/>
+  </g>
+</svg>
