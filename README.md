@@ -1,6 +1,6 @@
 # ClassFlow
 
-ClassFlow is a production-minded MVP for tuition classes. It gives administrators, teachers and students one role-aware workspace for courses, materials, timed quizzes, assignments, submissions, direct chat, forums and platform help.
+ClassFlow is a production-minded platform built for tuition classes. It gives administrators, teachers and students one role-aware workspace for courses, materials, timed quizzes, assignments, submissions, direct chat, forums and platform help.
 
 The project is a modular monolith: one Spring Boot API with clear domain packages and one Next.js client. It is intentionally straightforward to operate now and can be split into services later if traffic or team ownership calls for it.
 
