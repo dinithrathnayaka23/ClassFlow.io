@@ -62,7 +62,7 @@ public class SecurityConfig {
                         // after checking who is asking. This rule must stay above the general
                         // /uploads/** allowance to take effect.
                         .requestMatchers("/uploads/chat/**", "/uploads/submissions/**").denyAll()
-                        .requestMatchers("/api/auth/login", "/api/auth/register", "/api/health", "/ws/**", "/uploads/**").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/register", "/api/health", "/api/public/**", "/ws/**", "/uploads/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
