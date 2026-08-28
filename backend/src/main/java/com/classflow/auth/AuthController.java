@@ -4,6 +4,7 @@ import com.classflow.common.ApiException;
 import com.classflow.notification.NotificationService;
 import com.classflow.security.AuthCookies;
 import com.classflow.security.CurrentUser;
+import com.classflow.security.LoginRateLimiter;
 import com.classflow.security.UserPrincipal;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -18,6 +19,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,15 +37,18 @@ public class AuthController {
     private final JdbcClient jdbc;
     private final PasswordEncoder passwords;
     private final NotificationService notifications;
+    private final LoginRateLimiter loginLimiter;
 
     public AuthController(AuthenticationManager authenticationManager, AuthCookies cookies, CurrentUser currentUser,
-                          JdbcClient jdbc, PasswordEncoder passwords, NotificationService notifications) {
+                          JdbcClient jdbc, PasswordEncoder passwords, NotificationService notifications,
+                          LoginRateLimiter loginLimiter) {
         this.authenticationManager = authenticationManager;
         this.cookies = cookies;
         this.currentUser = currentUser;
         this.jdbc = jdbc;
         this.passwords = passwords;
         this.notifications = notifications;
+        this.loginLimiter = loginLimiter;
     }
 
     /**
@@ -84,10 +89,24 @@ public class AuthController {
         }
     }
 
+    /**
+     * Signs in, counting consecutive failures for the address so a password list cannot be
+     * worked through at the speed of the server. The count is checked before the password is
+     * verified and cleared the moment one is correct.
+     */
     @PostMapping("/login")
     public UserView login(@Valid @RequestBody LoginRequest request, HttpServletResponse response) {
-        var authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.email().trim().toLowerCase(), request.password()));
+        var email = request.email().trim().toLowerCase();
+        loginLimiter.check(email);
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(email, request.password()));
+        } catch (AuthenticationException failed) {
+            loginLimiter.recordFailure(email);
+            throw failed;
+        }
+        loginLimiter.recordSuccess(email);
         var user = (UserPrincipal) authentication.getPrincipal();
         cookies.issue(user, response);
         return UserView.from(user);
