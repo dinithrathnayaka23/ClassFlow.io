@@ -73,6 +73,10 @@ app:
   mail:
     from: ${MAIL_FROM:}
     from-name: ${MAIL_FROM_NAME:ClassFlow}
+  password-reset:
+    # How long a reset link stays usable. Short, because the link is as good as the password
+    # while it lives; long enough that mail delivery and a distracted user still fit inside it.
+    ttl-minutes: ${PASSWORD_RESET_TTL_MINUTES:30}
   # AI help. Providers are tried in the order below and the first one that
   # answers wins; a provider with no API key is skipped. With no keys set at all
   # the assistant falls back to built-in guidance, so the feature still works.
