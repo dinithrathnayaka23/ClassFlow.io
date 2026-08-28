@@ -172,18 +172,29 @@ public class ChatController {
                 """).param("id", messageId).param("me", user.id()).query(AttachmentRow.class).optional()
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Attachment not found"));
 
-        // Images and audio play in place; anything else is offered as a download.
-        var inline = "IMAGE".equals(row.attachmentType()) || "AUDIO".equals(row.attachmentType());
+        // Images and audio play in place; anything else is offered as a download. The stored
+        // kind came from the content type the sender's browser claimed, so it decides how a
+        // file is rendered but is not trusted to prove what the file is: an SVG is an image
+        // that can carry script, and this endpoint answers on the application's own origin,
+        // so rendering one in place would run that script with the recipient's session.
+        var type = mediaType(row.attachmentContentType());
+        var inline = ("IMAGE".equals(row.attachmentType()) || "AUDIO".equals(row.attachmentType()))
+                && !SCRIPTABLE_TYPES.contains(type.getType() + "/" + type.getSubtype());
         var disposition = (inline ? ContentDisposition.inline() : ContentDisposition.attachment())
                 .filename(row.attachmentName(), StandardCharsets.UTF_8).build();
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
-                .contentType(mediaType(row.attachmentContentType()))
+                // Without this a browser may sniff past the type below and execute the file anyway.
+                .header("X-Content-Type-Options", "nosniff")
+                .contentType(type)
                 .body(files.read(row.attachmentUrl()));
     }
 
     @MessageMapping("/chat.send")
     public void sendSocket(SendRequest request, Principal principal) {
+        // The handshake is not itself an authenticated endpoint, so a socket can reach here
+        // with nobody attached to it. Say so rather than failing on a null dereference.
+        if (principal == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "Authentication required");
         var sender = users.findPrincipalByEmail(principal.getName())
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Authentication required"));
         var body = request.body() == null ? "" : request.body().trim();
@@ -272,6 +283,10 @@ public class ChatController {
             return MediaType.APPLICATION_OCTET_STREAM;
         }
     }
+
+    /** Image and audio types a browser will execute rather than simply render. */
+    private static final java.util.Set<String> SCRIPTABLE_TYPES =
+            java.util.Set.of("image/svg+xml", "image/svg");
 
     /** IMAGE and AUDIO get rich rendering; everything else is a file card. */
     private String kindOf(String contentType) {

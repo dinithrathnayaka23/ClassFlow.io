@@ -20,12 +20,25 @@ function LoginPage() {
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    setLoading(true);
     setError("");
+
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail || !password) {
+      setError("Please enter your email and password");
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      setError("Please enter a valid email address");
+      return;
+    }
+
+    setLoading(true);
     try {
       const user = await api<User>("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: trimmedEmail, password }),
       });
       router.push(
         search.get("next") || `/${user.role.toLowerCase()}/dashboard`,
@@ -72,7 +85,7 @@ function LoginPage() {
           )}
           
           <Notice error={error} />
-          <form className="space-y-3" onSubmit={submit}>
+          <form className="flex flex-col gap-5" onSubmit={submit}>
             <label>
               <span className="label">Email address</span>
               <input

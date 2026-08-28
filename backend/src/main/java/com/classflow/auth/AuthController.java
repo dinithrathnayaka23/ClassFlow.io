@@ -4,6 +4,7 @@ import com.classflow.common.ApiException;
 import com.classflow.notification.NotificationService;
 import com.classflow.security.AuthCookies;
 import com.classflow.security.CurrentUser;
+import com.classflow.security.LoginRateLimiter;
 import com.classflow.security.UserPrincipal;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -18,6 +19,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,15 +37,18 @@ public class AuthController {
     private final JdbcClient jdbc;
     private final PasswordEncoder passwords;
     private final NotificationService notifications;
+    private final LoginRateLimiter loginLimiter;
 
     public AuthController(AuthenticationManager authenticationManager, AuthCookies cookies, CurrentUser currentUser,
-                          JdbcClient jdbc, PasswordEncoder passwords, NotificationService notifications) {
+                          JdbcClient jdbc, PasswordEncoder passwords, NotificationService notifications,
+                          LoginRateLimiter loginLimiter) {
         this.authenticationManager = authenticationManager;
         this.cookies = cookies;
         this.currentUser = currentUser;
         this.jdbc = jdbc;
         this.passwords = passwords;
         this.notifications = notifications;
+        this.loginLimiter = loginLimiter;
     }
 
     /**
@@ -84,10 +89,24 @@ public class AuthController {
         }
     }
 
+    /**
+     * Signs in, counting consecutive failures for the address so a password list cannot be
+     * worked through at the speed of the server. The count is checked before the password is
+     * verified and cleared the moment one is correct.
+     */
     @PostMapping("/login")
     public UserView login(@Valid @RequestBody LoginRequest request, HttpServletResponse response) {
-        var authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.email().trim().toLowerCase(), request.password()));
+        var email = request.email().trim().toLowerCase();
+        loginLimiter.check(email);
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(email, request.password()));
+        } catch (AuthenticationException failed) {
+            loginLimiter.recordFailure(email);
+            throw failed;
+        }
+        loginLimiter.recordSuccess(email);
         var user = (UserPrincipal) authentication.getPrincipal();
         cookies.issue(user, response);
         return UserView.from(user);
@@ -106,11 +125,20 @@ public class AuthController {
 
     public record LoginRequest(@NotBlank @Email String email, @NotBlank String password) {}
 
+    /**
+     * The length caps mirror the columns these values are written to, so an over-long entry
+     * comes back as a clear 400 instead of failing at the database and surfacing as a 500.
+     * The password cap is different in kind: BCrypt reads only the first 72 bytes, so a
+     * longer one is silently truncated, and a password that is not stored as typed is worth
+     * rejecting rather than accepting under a false impression.
+     */
     public record RegisterRequest(
-            @NotBlank(message = "Email is required") @Email(message = "Enter a valid email address") String email,
+            @NotBlank(message = "Email is required") @Email(message = "Enter a valid email address")
+            @Size(max = 190, message = "Email address is too long") String email,
             @NotBlank(message = "Password is required")
-            @Size(min = 8, message = "Password must be at least 8 characters") String password,
-            @NotBlank(message = "Full name is required") String fullName,
+            @Size(min = 8, max = 72, message = "Password must be between 8 and 72 characters") String password,
+            @NotBlank(message = "Full name is required")
+            @Size(max = 120, message = "Full name is too long") String fullName,
             @NotBlank(message = "Role is required")
             @Pattern(regexp = "(?i)TEACHER|STUDENT", message = "Role must be TEACHER or STUDENT") String role
     ) {}
