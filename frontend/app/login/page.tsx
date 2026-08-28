@@ -72,7 +72,7 @@ function LoginPage() {
           )}
           
           <Notice error={error} />
-          <form className="space-y-3" onSubmit={submit}>
+          <form className="flex flex-col gap-5" onSubmit={submit}>
             <label>
               <span className="label">Email address</span>
               <input
