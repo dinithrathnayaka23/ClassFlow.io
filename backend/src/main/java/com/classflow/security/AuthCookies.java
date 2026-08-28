@@ -20,21 +20,28 @@ import org.springframework.stereotype.Component;
 public class AuthCookies {
     private static final String TOKEN = "classflow_token";
     private static final String ROLE = "classflow_role";
-    private static final Duration LIFETIME = Duration.ofHours(12);
-
     private final JwtService jwt;
     private final boolean secure;
+    /**
+     * Matches the token's own lifetime rather than repeating a number. When the two were set
+     * separately, changing the configured expiry moved only one of them: a longer token still
+     * lost its cookie after twelve hours, and a shorter one left the browser holding a cookie
+     * whose token had already expired.
+     */
+    private final Duration lifetime;
 
-    public AuthCookies(JwtService jwt, @Value("${app.secure-cookies}") boolean secure) {
+    public AuthCookies(JwtService jwt, @Value("${app.secure-cookies}") boolean secure,
+                       @Value("${app.jwt-expiration-hours}") long expirationHours) {
         this.jwt = jwt;
         this.secure = secure;
+        this.lifetime = Duration.ofHours(expirationHours);
     }
 
     /** Signs the user in on this response: an HTTP-only token plus a readable role hint. */
     public void issue(UserPrincipal user, HttpServletResponse response) {
-        response.addHeader(HttpHeaders.SET_COOKIE, cookie(TOKEN, jwt.create(user), true, LIFETIME).toString());
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie(TOKEN, jwt.create(user), true, lifetime).toString());
         response.addHeader(HttpHeaders.SET_COOKIE,
-                cookie(ROLE, user.role().toLowerCase(Locale.ROOT), false, LIFETIME).toString());
+                cookie(ROLE, user.role().toLowerCase(Locale.ROOT), false, lifetime).toString());
     }
 
     public void clear(HttpServletResponse response) {
