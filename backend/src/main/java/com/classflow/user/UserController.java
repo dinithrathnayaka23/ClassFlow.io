@@ -383,9 +383,11 @@ public class UserController {
                              @Pattern(regexp = "ADMIN|TEACHER|STUDENT") String role, String phone) {}
     public record UpdateProfile(@NotBlank String fullName, String phone, String bio) {}
     public record ChangePassword(@NotBlank(message = "Enter your current password") String currentPassword,
-                                @Size(min = 8, message = "New password must be at least 8 characters")
+                                // The upper bound is BCrypt's: it reads only the first 72 bytes, so a
+                                // longer password would not be stored as the user typed it.
+                                @Size(min = 8, max = 72, message = "New password must be 8 to 72 characters")
                                 String newPassword) {}
-    public record ResetPassword(@Size(min = 8, message = "Password must be at least 8 characters")
+    public record ResetPassword(@Size(min = 8, max = 72, message = "Password must be 8 to 72 characters")
                                 String newPassword) {}
     public record RoleRequest(@Pattern(regexp = "(?i)ADMIN|TEACHER|STUDENT",
                                        message = "Role must be ADMIN, TEACHER or STUDENT") String role) {}

@@ -1,5 +1,6 @@
 package com.classflow.material;
 
+import com.classflow.common.ApiException;
 import com.classflow.common.CourseAccess;
 import com.classflow.common.FileStorage;
 import com.classflow.notification.NotificationService;
@@ -53,6 +54,8 @@ public class MaterialController {
             var stored = files.save(file, "materials");
             fileName = stored.name();
             url = stored.url();
+        } else {
+            url = requireWebLink(url);
         }
         var id = jdbc.sql("""
                 INSERT INTO materials(course_id, title, type, url, file_name, created_by)
@@ -63,6 +66,23 @@ public class MaterialController {
         notifications.notifyCourseStudents(courseId, user.id(), "MATERIAL_ADDED",
                 "New material: " + title, null, "materials");
         return get(id);
+    }
+
+    /**
+     * Accepts only an ordinary web address for a link, video or live class.
+     *
+     * What is stored here is rendered straight into a link the class will click, so any
+     * scheme the browser can be talked into running - javascript:, data: - would turn adding
+     * a material into a way to run code in a student's session. Only the two schemes that
+     * mean "another page on the web" get through.
+     */
+    private String requireWebLink(String url) {
+        var trimmed = url == null ? "" : url.trim();
+        var lower = trimmed.toLowerCase(java.util.Locale.ROOT);
+        if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Enter a link starting with http:// or https://");
+        }
+        return trimmed;
     }
 
     @DeleteMapping("/{id}")

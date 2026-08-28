@@ -106,11 +106,20 @@ public class AuthController {
 
     public record LoginRequest(@NotBlank @Email String email, @NotBlank String password) {}
 
+    /**
+     * The length caps mirror the columns these values are written to, so an over-long entry
+     * comes back as a clear 400 instead of failing at the database and surfacing as a 500.
+     * The password cap is different in kind: BCrypt reads only the first 72 bytes, so a
+     * longer one is silently truncated, and a password that is not stored as typed is worth
+     * rejecting rather than accepting under a false impression.
+     */
     public record RegisterRequest(
-            @NotBlank(message = "Email is required") @Email(message = "Enter a valid email address") String email,
+            @NotBlank(message = "Email is required") @Email(message = "Enter a valid email address")
+            @Size(max = 190, message = "Email address is too long") String email,
             @NotBlank(message = "Password is required")
-            @Size(min = 8, message = "Password must be at least 8 characters") String password,
-            @NotBlank(message = "Full name is required") String fullName,
+            @Size(min = 8, max = 72, message = "Password must be between 8 and 72 characters") String password,
+            @NotBlank(message = "Full name is required")
+            @Size(max = 120, message = "Full name is too long") String fullName,
             @NotBlank(message = "Role is required")
             @Pattern(regexp = "(?i)TEACHER|STUDENT", message = "Role must be TEACHER or STUDENT") String role
     ) {}
