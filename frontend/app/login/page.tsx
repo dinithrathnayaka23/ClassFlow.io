@@ -97,10 +97,26 @@ function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
               />
             </label>
-            <label>
-              <span className="label">Password</span>
+            {/*
+              Not a wrapping <label> like the field above it: the recovery link sits on the
+              same line as the caption, and an anchor nested inside a label is both invalid
+              and awkward to reach by keyboard. htmlFor ties the caption to the input instead.
+            */}
+            <div>
+              <div className="flex items-baseline justify-between">
+                <label className="label" htmlFor="password">
+                  Password
+                </label>
+                <Link
+                  href="/forgot-password"
+                  className="mb-1.5 text-xs font-semibold text-white/45 transition hover:text-neon"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <div className="relative">
                 <input
+                  id="password"
                   className="input pr-10"
                   type={showPassword ? "text" : "password"}
                   placeholder="Your password"
@@ -117,7 +133,7 @@ function LoginPage() {
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-            </label>
+            </div>
             <button className="btn w-full py-3" disabled={loading}>
               {loading ? "Signing in..." : "Sign in"} <ArrowRight size={16} />
             </button>

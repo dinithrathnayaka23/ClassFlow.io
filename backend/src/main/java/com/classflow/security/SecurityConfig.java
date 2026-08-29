@@ -62,6 +62,11 @@ public class SecurityConfig {
                         // after checking who is asking. This rule must stay above the general
                         // /uploads/** allowance to take effect.
                         .requestMatchers("/uploads/chat/**", "/uploads/submissions/**").denyAll()
+                        // Password recovery is necessarily anonymous: someone who cannot sign in is
+                        // exactly who needs it. What keeps it safe is in PasswordResetService -
+                        // a one-time hashed token, a short expiry, per-address throttling, and a
+                        // reply that is identical whether or not the address has an account.
+                        .requestMatchers("/api/auth/forgot-password", "/api/auth/reset-password").permitAll()
                         .requestMatchers("/api/auth/login", "/api/auth/register", "/api/health", "/api/public/**", "/ws/**", "/uploads/**").permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .anyRequest().authenticated())
