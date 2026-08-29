@@ -80,7 +80,16 @@ would put the platform in the hands of whoever holds that mailbox. A locked-out 
 
 Mail is optional locally. With `MAIL_HOST` blank nothing is sent - the message, reset link and
 all, is written to the application log so the flow can be exercised with no SMTP account. That
-is a development convenience only; set the `MAIL_*` values on any real deployment.
+is a development convenience only; set the `MAIL_*` values on any real deployment. Which mode
+an instance is in is reported once at startup (`Mail is enabled: ...` or `Mail is DISABLED
+because MAIL_HOST is not set`), so a deployment that is quietly logging links instead of
+sending them is visible immediately rather than only when somebody reports a missing email.
+
+Requests are capped per address - `PASSWORD_RESET_MAX_REQUESTS` (default 10) inside
+`PASSWORD_RESET_WINDOW_MINUTES` (default 15) - so nobody can bury a mailbox in reset mail or
+burn the sending quota. It is a backstop rather than a gate: a real user never reaches it, a
+completed reset clears the count, and every refusal is logged. Setting the maximum to `0`
+removes the cap entirely.
 
 ## Local Development
 
