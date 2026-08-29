@@ -9,6 +9,32 @@ spring:
   flyway:
     enabled: true
     baseline-on-migrate: true
+  mail:
+    # Leave MAIL_HOST unset and no mail is sent: Mailer logs the message instead, so the
+    # password reset flow is still testable with no SMTP account. Any provider works -
+    # Gmail with an app password, Brevo, Mailgun, Resend, or a local MailHog on port 1025.
+    host: ${MAIL_HOST:}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${MAIL_AUTH:true}
+      mail.smtp.starttls.enable: ${MAIL_STARTTLS:true}
+      # Without these a silent or unreachable SMTP server holds a sending thread for as long
+      # as the OS lets it, and the small pool below would fill up with stuck sends.
+      mail.smtp.connectiontimeout: 10000
+      mail.smtp.timeout: 10000
+      mail.smtp.writetimeout: 10000
+  task:
+    execution:
+      pool:
+        # The pool behind Mailer's @Async sends. Small and bounded on purpose: mail is the
+        # only thing here that waits on a third party, so a slow SMTP server can queue up but
+        # cannot spawn threads without limit. A full queue makes the caller send it inline,
+        # which slows one request down rather than dropping somebody's reset link.
+        core-size: 2
+        max-size: 4
+        queue-capacity: 100
   servlet:
     multipart:
       # Per file, and for the whole request. A submission may carry several files at once,
@@ -42,6 +68,15 @@ app:
     password: ${ADMIN_PASSWORD:}
     name: ${ADMIN_NAME:ClassFlow Admin}
     reset-password: ${ADMIN_RESET_PASSWORD:false}
+  # Outgoing address for password reset mail. Most providers reject a From they do not own,
+  # so this usually has to match the mailbox MAIL_USERNAME authenticates as.
+  mail:
+    from: ${MAIL_FROM:}
+    from-name: ${MAIL_FROM_NAME:ClassFlow}
+  password-reset:
+    # How long a reset link stays usable. Short, because the link is as good as the password
+    # while it lives; long enough that mail delivery and a distracted user still fit inside it.
+    ttl-minutes: ${PASSWORD_RESET_TTL_MINUTES:30}
   # AI help. Providers are tried in the order below and the first one that
   # answers wins; a provider with no API key is skipped. With no keys set at all
   # the assistant falls back to built-in guidance, so the feature still works.

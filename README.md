@@ -67,6 +67,21 @@ There are no seeded or demo accounts, and no credentials are stored in this repo
   only way an admin is created. To rotate the password later, set `ADMIN_RESET_PASSWORD=true`
   for exactly one restart, then set it back to `false`.
 
+### Forgotten passwords
+
+Teachers and students recover their own accounts from `/forgot-password`: they receive a
+single-use link, valid for `PASSWORD_RESET_TTL_MINUTES` (30 by default), that lets them choose
+a new password. Saving it signs the account out on every device.
+
+Admins are deliberately excluded. The admin account is provisioned from configuration, and it
+is the account that can reset everyone else's password, so recovering it through a mailbox
+would put the platform in the hands of whoever holds that mailbox. A locked-out admin uses
+`ADMIN_RESET_PASSWORD` instead.
+
+Mail is optional locally. With `MAIL_HOST` blank nothing is sent - the message, reset link and
+all, is written to the application log so the flow can be exercised with no SMTP account. That
+is a development convenience only; set the `MAIL_*` values on any real deployment.
+
 ## Local Development
 
 1) Create the database:
@@ -111,11 +126,12 @@ All backend values come from `backend/.env` (see `backend/.env.example`); the ke
 
 ## API Summary
 
-All endpoints except login and health require authentication. Resource access is validated against the current user's role and course membership/ownership.
+All endpoints except login, registration, password recovery and health require authentication. Resource access is validated against the current user's role and course membership/ownership.
 
 | Area | Key endpoints |
 | --- | --- |
-| Auth | `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/logout` |
+| Auth | `POST /api/auth/login`, `POST /api/auth/register`, `GET /api/auth/me`, `POST /api/auth/logout` |
+| Password recovery | `POST /api/auth/forgot-password`, `GET/POST /api/auth/reset-password` (public; teachers and students only) |
 | Users | `GET/POST /api/users`, `PATCH /api/users/me`, `PATCH /api/users/{id}/status` |
 | Courses | `GET/POST /api/courses`, `GET /api/courses/{id}`, `POST /api/courses/{id}/enrollments`, lesson endpoints |
 | Materials | `GET/POST /api/materials`, `DELETE /api/materials/{id}` |
@@ -136,6 +152,10 @@ All endpoints except login and health require authentication. Resource access is
   configuration; `backend/.env.example` is the committed template and holds only placeholders.
 - There are no seeded accounts. The admin is provisioned from `ADMIN_EMAIL`/`ADMIN_PASSWORD`;
   teachers and students self-register and cannot obtain the ADMIN role.
+- Password reset links are single use, expire quickly, and are stored only as a SHA-256 digest,
+  so a database dump yields no working links. Requesting one is throttled per address and
+  answers identically whether or not the address is registered, so it cannot be used to find
+  out who has an account.
 - Uploaded files are stored outside the database in the configured upload directory. The `FileStorage` boundary can later be replaced by S3 or Cloudflare R2.
 
 ## Deployment Notes

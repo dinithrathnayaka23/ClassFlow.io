@@ -85,6 +85,15 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
+        <!--
+            Outbound SMTP, used only to deliver password reset links. The application still
+            starts and runs with no mail server configured; PasswordResetMailer falls back to
+            logging the link, which is what makes the flow testable locally.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-websocket</artifactId>

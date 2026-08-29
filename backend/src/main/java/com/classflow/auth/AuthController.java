@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -38,10 +39,11 @@ public class AuthController {
     private final PasswordEncoder passwords;
     private final NotificationService notifications;
     private final LoginRateLimiter loginLimiter;
+    private final PasswordResetService passwordResets;
 
     public AuthController(AuthenticationManager authenticationManager, AuthCookies cookies, CurrentUser currentUser,
                           JdbcClient jdbc, PasswordEncoder passwords, NotificationService notifications,
-                          LoginRateLimiter loginLimiter) {
+                          LoginRateLimiter loginLimiter, PasswordResetService passwordResets) {
         this.authenticationManager = authenticationManager;
         this.cookies = cookies;
         this.currentUser = currentUser;
@@ -49,6 +51,7 @@ public class AuthController {
         this.passwords = passwords;
         this.notifications = notifications;
         this.loginLimiter = loginLimiter;
+        this.passwordResets = passwordResets;
     }
 
     /**
@@ -112,6 +115,48 @@ public class AuthController {
         return UserView.from(user);
     }
 
+    /**
+     * Starts a password reset. Answers the same way whether or not the address has an account:
+     * telling the caller would turn this into a way to find out who is registered here, and
+     * the person who does own the address learns the answer from their inbox anyway.
+     *
+     * Teachers and students only. The admin account is provisioned from configuration, not
+     * recovered through email - see PasswordResetService.
+     */
+    @PostMapping("/forgot-password")
+    public Map<String, Object> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        passwordResets.requestReset(request.email());
+        // The lifetime is returned rather than written into the page, so the number the user
+        // is told is always the one the server actually enforces.
+        return Map.of(
+                "message", "If that address has a ClassFlow account, a link to choose a new password is on its way.",
+                "expiresInMinutes", passwordResets.linkLifetimeMinutes());
+    }
+
+    /**
+     * Checks a link before the reset page renders its form, so an expired or already-used link
+     * says so straight away instead of after somebody has typed a new password twice.
+     */
+    @GetMapping("/reset-password")
+    public Map<String, Object> checkResetToken(@RequestParam(defaultValue = "") String token) {
+        var account = passwordResets.requireValidToken(token);
+        // The address is echoed back because it tells the holder of the link which account they
+        // are about to change - useful on a shared machine, and no more than the link itself
+        // already grants them.
+        return Map.of("valid", true, "email", account.email(), "fullName", account.fullName());
+    }
+
+    /**
+     * Finishes the reset. No cookie is issued: signing somebody in on the strength of a link
+     * that arrived by email would undo the point of having signed every session out, so they
+     * sign in once with the password they have just chosen.
+     */
+    @PostMapping("/reset-password")
+    public Map<String, String> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        passwordResets.reset(request.token(), request.password());
+        return Map.of("message", "Your password has been changed. Sign in with your new password.");
+    }
+
     @GetMapping("/me")
     public UserView me(Authentication authentication) {
         return UserView.from(currentUser.require(authentication));
@@ -122,6 +167,20 @@ public class AuthController {
         cookies.clear(response);
         return Map.of("success", true);
     }
+
+    public record ForgotPasswordRequest(
+            @NotBlank(message = "Email is required") @Email(message = "Enter a valid email address")
+            @Size(max = 190, message = "Email address is too long") String email) {}
+
+    /**
+     * The same 8-to-72 bound as sign-up and the profile's own password change: BCrypt reads
+     * only the first 72 bytes, so anything longer would not be stored as the user typed it.
+     */
+    public record ResetPasswordRequest(
+            @NotBlank(message = "The reset link is missing its token")
+            @Size(max = 200, message = "That reset token is not valid") String token,
+            @NotBlank(message = "Password is required")
+            @Size(min = 8, max = 72, message = "Password must be between 8 and 72 characters") String password) {}
 
     public record LoginRequest(@NotBlank @Email String email, @NotBlank String password) {}
 
