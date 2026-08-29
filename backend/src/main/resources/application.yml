@@ -68,11 +68,22 @@ app:
     password: ${ADMIN_PASSWORD:}
     name: ${ADMIN_NAME:ClassFlow Admin}
     reset-password: ${ADMIN_RESET_PASSWORD:false}
-  # Outgoing address for password reset mail. Most providers reject a From they do not own,
-  # so this usually has to match the mailbox MAIL_USERNAME authenticates as.
   mail:
+    # Transports are tried in this order and the first one configured wins. The HTTP API is
+    # listed first on purpose: where a deployment has both, it is because outbound SMTP is
+    # blocked there, and preferring the transport that works avoids every send timing out.
+    order: ${MAIL_PROVIDER_ORDER:brevo,smtp}
+    # The From. Providers reject a From they do not own, so this has to be an address you
+    # have verified with them - normally the same mailbox as MAIL_USERNAME for SMTP.
     from: ${MAIL_FROM:}
     from-name: ${MAIL_FROM_NAME:ClassFlow}
+    timeout-seconds: ${MAIL_TIMEOUT_SECONDS:15}
+    brevo:
+      # Send over HTTPS instead of SMTP. Required on hosts that block outbound SMTP, which
+      # includes Render: there, port 587 does not refuse the connection, it silently times
+      # out, so correct SMTP credentials fail in a way that looks like a broken mail account.
+      api-key: ${BREVO_API_KEY:}
+      base-url: ${BREVO_BASE_URL:https://api.brevo.com/v3}
   password-reset:
     # How long a reset link stays usable. Short, because the link is as good as the password
     # while it lives; long enough that mail delivery and a distracted user still fit inside it.

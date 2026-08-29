@@ -78,12 +78,23 @@ is the account that can reset everyone else's password, so recovering it through
 would put the platform in the hands of whoever holds that mailbox. A locked-out admin uses
 `ADMIN_RESET_PASSWORD` instead.
 
-Mail is optional locally. With `MAIL_HOST` blank nothing is sent - the message, reset link and
-all, is written to the application log so the flow can be exercised with no SMTP account. That
-is a development convenience only; set the `MAIL_*` values on any real deployment. Which mode
-an instance is in is reported once at startup (`Mail is enabled: ...` or `Mail is DISABLED
-because MAIL_HOST is not set`), so a deployment that is quietly logging links instead of
-sending them is visible immediately rather than only when somebody reports a missing email.
+Mail has two transports, tried in the order given by `MAIL_PROVIDER_ORDER` (default
+`brevo,smtp`), and the first one configured wins:
+
+- **`brevo`** - Brevo's HTTP API over 443. Set `BREVO_API_KEY` and `MAIL_FROM`. **This is the
+  one to use on a deployment.** Hosting platforms commonly block outbound SMTP; on Render a
+  connection to port 587 times out rather than being refused, so entirely correct Gmail
+  credentials fail there in a way that looks like a broken mail account. Port 443 is never
+  blocked. Any provider with a send endpoint would do - Brevo is wired up because its free
+  tier sends to any recipient once a sender address is verified.
+- **`smtp`** - a normal SMTP server. Easiest locally, where nothing blocks the port.
+
+With neither configured nothing is sent: the message, reset link and all, is written to the
+application log so the flow can be exercised with no mail account at all. That is a
+development convenience only. Which mode an instance is in is reported once at startup
+(`Mail is enabled via brevo: ...`, or `Mail is DISABLED - no transport is configured`), so a
+deployment that is quietly logging links instead of sending them is visible immediately
+rather than only when somebody reports a missing email.
 
 Requests are capped per address - `PASSWORD_RESET_MAX_REQUESTS` (default 10) inside
 `PASSWORD_RESET_WINDOW_MINUTES` (default 15) - so nobody can bury a mailbox in reset mail or
