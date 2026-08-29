@@ -63,17 +63,21 @@ public class PasswordResetService {
     private final Duration ttl;
     private final String webOrigin;
     /**
-     * Requests are capped per address, and far more tightly than sign-ins are. Every request
-     * puts mail in somebody's inbox, and that somebody is not necessarily the person asking,
-     * so a handful an hour is generous for a real user and useless as a way to bury an account
-     * in mail. Redeeming a link clears the count.
+     * Requests are capped per address so that nobody can bury a mailbox in reset mail or burn
+     * through the sending quota. It is a backstop, not a gate: the defaults are set well above
+     * anything a real person does - someone whose first mail was slow will ask again two or
+     * three times, not ten - and the window is short so a mistake costs minutes, not an hour.
+     * Redeeming a link clears the count outright.
+     *
+     * Both numbers are configurable, and a limit of zero switches the cap off entirely.
      */
-    private final AttemptLimiter requests = new AttemptLimiter(5, Duration.ofHours(1),
-            "Too many reset requests for this address. Check your inbox, or try again later.");
+    private final AttemptLimiter requests;
 
     public PasswordResetService(JdbcClient jdbc, PasswordEncoder passwords, Mailer mailer, ActivityLog activity,
                                 NotificationService notifications, LoginRateLimiter loginLimiter,
                                 @Value("${app.password-reset.ttl-minutes:30}") long ttlMinutes,
+                                @Value("${app.password-reset.max-requests:10}") int maxRequests,
+                                @Value("${app.password-reset.window-minutes:15}") long windowMinutes,
                                 @Value("${app.allowed-origin}") String webOrigin) {
         this.jdbc = jdbc;
         this.passwords = passwords;
@@ -82,6 +86,13 @@ public class PasswordResetService {
         this.notifications = notifications;
         this.loginLimiter = loginLimiter;
         this.ttl = Duration.ofMinutes(ttlMinutes);
+        this.requests = new AttemptLimiter(maxRequests, Duration.ofMinutes(windowMinutes),
+                "Too many reset requests for this address. Check your inbox - a link may already be"
+                        + " on its way - then try again in a few minutes.");
+        if (this.requests.isDisabled()) {
+            log.warn("Password reset requests are not rate limited (app.password-reset.max-requests={}). "
+                    + "Anyone can then have unlimited mail sent to any registered address.", maxRequests);
+        }
         this.webOrigin = webOrigin.endsWith("/") ? webOrigin.substring(0, webOrigin.length() - 1) : webOrigin;
     }
 

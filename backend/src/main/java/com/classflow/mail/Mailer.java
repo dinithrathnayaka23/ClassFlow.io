@@ -1,5 +1,6 @@
 package com.classflow.mail;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
 import java.io.UnsupportedEncodingException;
@@ -33,17 +34,39 @@ public class Mailer {
 
     private final ObjectProvider<JavaMailSender> senders;
     private final String host;
+    private final String port;
     private final String from;
     private final String fromName;
 
     public Mailer(ObjectProvider<JavaMailSender> senders,
                   @Value("${spring.mail.host:}") String host,
+                  @Value("${spring.mail.port:}") String port,
                   @Value("${app.mail.from:}") String from,
                   @Value("${app.mail.from-name:ClassFlow}") String fromName) {
         this.senders = senders;
         this.host = host == null ? "" : host.trim();
+        this.port = port == null ? "" : port.trim();
         this.from = from == null ? "" : from.trim();
         this.fromName = fromName;
+    }
+
+    /**
+     * Says on startup which of the two modes this instance is in.
+     *
+     * Worth a line of its own because the difference is otherwise invisible until somebody
+     * asks for a reset and no mail arrives - and at that point every explanation looks alike.
+     * Seeing this in the log immediately after boot answers "did my SMTP settings reach the
+     * server" without having to send anything.
+     */
+    @PostConstruct
+    void reportConfiguration() {
+        if (isConfigured()) {
+            log.info("Mail is enabled: sending via {}:{} as {}", host, port, fromDescription());
+        } else {
+            log.warn("Mail is DISABLED because MAIL_HOST is not set. Messages, including password "
+                    + "reset links, will be written to this log instead of being sent. "
+                    + "This is for local development only - set MAIL_HOST on any deployment.");
+        }
     }
 
     /** True when mail would actually leave the server, rather than being logged. */
@@ -84,6 +107,11 @@ public class Mailer {
             // fix rather than something the person resetting their password can act on.
             log.error("Could not send \"{}\" to {}", subject, to, failure);
         }
+    }
+
+    /** The From that will be used, for the startup line. Never includes the credentials. */
+    private String fromDescription() {
+        return from.isBlank() ? "no-reply@" + host + " (MAIL_FROM is unset)" : from;
     }
 
     private InternetAddress fromAddress() throws UnsupportedEncodingException {
