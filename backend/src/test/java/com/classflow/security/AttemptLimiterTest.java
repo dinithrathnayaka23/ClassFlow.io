@@ -1,5 +1,6 @@
 package com.classflow.security;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -77,6 +78,25 @@ class AttemptLimiterTest {
         // Otherwise anyone could stop everybody else recovering their account by exhausting
         // a shared count.
         assertThatCode(() -> limiter.check("teacher@classflow.com")).doesNotThrowAnyException();
+    }
+
+    @Test
+    void aLimitOfZeroTurnsTheLimiterOff() {
+        // The escape hatch for a deployment that would rather not have a cap. It must never
+        // refuse, however many attempts it sees, and must say so about itself.
+        var limiter = new AttemptLimiter(0, Duration.ofHours(1), MESSAGE);
+
+        for (var attempt = 0; attempt < 50; attempt++) {
+            limiter.record(EMAIL);
+        }
+
+        assertThat(limiter.isDisabled()).isTrue();
+        assertThatCode(() -> limiter.check(EMAIL)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void aConfiguredLimitReportsItselfAsEnabled() {
+        assertThat(limiter().isDisabled()).isFalse();
     }
 
     @Test

@@ -7,6 +7,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 
 /**
@@ -18,12 +20,19 @@ import org.springframework.http.HttpStatus;
  * identical in both cases, so it lives here once and each caller supplies its own threshold,
  * window and message.
  *
+ * A limit of zero or less turns the whole thing off, which is the escape hatch for a
+ * deployment that would rather not have one. Nothing here is load bearing for correctness -
+ * it only makes abuse expensive - so switching it off degrades safety without breaking
+ * anything.
+ *
  * State is held in memory rather than in the database. That is the right trade for a single
  * instance - it costs nothing and needs no migration - but it does mean the count resets on
  * restart, and that two instances behind a load balancer would each keep their own tally.
  * Moving to a shared store is the change to make when this runs on more than one node.
  */
 public class AttemptLimiter {
+    private static final Logger log = LoggerFactory.getLogger(AttemptLimiter.class);
+
     /**
      * A ceiling on how many keys are tracked at once. The map is keyed by whatever the caller
      * sends, so an attacker rotating addresses would otherwise grow it without bound until the
@@ -42,16 +51,30 @@ public class AttemptLimiter {
         this.message = message;
     }
 
+    /** True when this limiter has been configured out of the way entirely. */
+    public boolean isDisabled() {
+        return maxAttempts <= 0;
+    }
+
     /** Throws once a key has been used too often, until its window expires. */
     public void check(String key) {
-        var seen = attempts.get(normalise(key));
+        if (isDisabled()) return;
+        var normalised = normalise(key);
+        var seen = attempts.get(normalised);
         if (seen == null || seen.expired(window)) return;
         if (seen.count.get() >= maxAttempts) {
+            // Logged, and not only thrown, because a refusal happens before the caller does
+            // any work of its own. Without this line a throttled request leaves no trace at
+            // all, which makes it indistinguishable in the log from a request that never
+            // arrived - and that is the hardest kind of outage to diagnose.
+            log.warn("Refusing {}: {} attempts in the last {} minutes, limit is {}.",
+                    normalised, seen.count.get(), window.toMinutes(), maxAttempts);
             throw new ApiException(HttpStatus.TOO_MANY_REQUESTS, message);
         }
     }
 
     public void record(String key) {
+        if (isDisabled()) return;
         if (attempts.size() >= MAX_TRACKED) prune();
         attempts.compute(normalise(key), (ignored, existing) ->
                 existing == null || existing.expired(window) ? new Attempts() : existing.increment());
