@@ -6,17 +6,13 @@ import { api, User } from "@/lib/api";
 import { Empty, Notice, SectionTitle } from "@/components/ui";
 import { Composer } from "./chat/Composer";
 import { MessageBubble } from "./chat/MessageBubble";
-import { notifyUnreadChanged } from "./chat/useUnreadMessages";
+import { sendChatText, useChatEvents, useChatReconnecting } from "./chat/socket";
 import {
   ChatContact,
   ChatMessage,
   formatDay,
   previewOf,
 } from "./chat/types";
-
-/** How often the open conversation and the contact list refresh. */
-const MESSAGE_POLL_MS = 3000;
-const CONTACT_POLL_MS = 6000;
 
 function initials(name: string) {
   return (
@@ -30,6 +26,29 @@ function initials(name: string) {
   );
 }
 
+/**
+ * Adds messages by id, so one that arrives both as a pushed event and in a history fetch
+ * appears once. Ids are assigned in insert order, which is the order they were sent in.
+ */
+function mergeMessages(current: ChatMessage[], incoming: ChatMessage[]) {
+  const byId = new Map(current.map((message) => [message.id, message]));
+  incoming.forEach((message) => byId.set(message.id, message));
+  return [...byId.values()].sort((a, b) => a.id - b.id);
+}
+
+/** Most recent conversation first, then by name - the same order the server lists them in. */
+function sortContacts(contacts: ChatContact[]) {
+  const when = (contact: ChatContact) =>
+    contact.lastMessageAt ? Date.parse(contact.lastMessageAt) : -Infinity;
+  return [...contacts].sort(
+    (a, b) => when(b) - when(a) || a.fullName.localeCompare(b.fullName),
+  );
+}
+
+function tabVisible() {
+  return document.visibilityState === "visible";
+}
+
 export function Chat({ role }: { role: string }) {
   const [me, setMe] = useState<User>();
   const [contacts, setContacts] = useState<ChatContact[]>([]);
@@ -38,11 +57,14 @@ export function Chat({ role }: { role: string }) {
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const reconnecting = useChatReconnecting();
 
   const scroller = useRef<HTMLDivElement>(null);
   // Tracks the newest message already on screen, so the view only auto-scrolls when
-  // something new arrives rather than fighting the reader on every poll.
+  // something new arrives rather than jumping when an existing message is updated.
   const lastSeenId = useRef<number>(0);
+  // The open conversation, for async work that finishes after the user may have moved on.
+  const activeRef = useRef<number | null>(null);
 
   const active = contacts.find((contact) => contact.id === activeId);
 
@@ -58,33 +80,119 @@ export function Chat({ role }: { role: string }) {
 
   const loadMessages = useCallback(async (otherId: number) => {
     try {
-      setMessages(await api<ChatMessage[]>(`/chat/messages/${otherId}`));
+      const fetched = await api<ChatMessage[]>(`/chat/messages/${otherId}`);
+      // A reply for a conversation the user has since left must not land in the one they opened.
+      if (activeRef.current !== otherId) return;
+      // Merged rather than replaced: an event that arrived while this was in flight stays.
+      setMessages((current) => mergeMessages(current, fetched));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load messages");
     }
   }, []);
 
-  /** Clears the badge for this conversation, both here and in the sidebar. */
-  const markRead = useCallback(
-    async (otherId: number) => {
-      try {
-        const result = await api<{ marked: number }>(
-          `/chat/messages/${otherId}/read`,
-          { method: "POST" },
+  /**
+   * Marks the conversation read. The server answers with READ and UNREAD events, which clear
+   * this badge in every open tab and the sidebar total; clearing it here as well just saves
+   * the round trip.
+   */
+  const markRead = useCallback(async (otherId: number) => {
+    try {
+      const result = await api<{ marked: number }>(
+        `/chat/messages/${otherId}/read`,
+        { method: "POST" },
+      );
+      if (result.marked > 0) {
+        setContacts((current) =>
+          current.map((contact) =>
+            contact.id === otherId ? { ...contact, unread: 0 } : contact,
+          ),
         );
-        if (result.marked > 0) {
+      }
+    } catch {
+      // Read receipts are not worth surfacing an error over; the next open retries.
+    }
+  }, []);
+
+  /**
+   * Puts a message where it belongs: in the open conversation if it is part of it, and as the
+   * preview and unread count on its contact. Safe to call twice for the same message, which
+   * happens when a send's own result and its pushed echo both arrive.
+   */
+  function applyMessage(message: ChatMessage) {
+    // Contacts never include you, so whichever side of the message is listed is the other person.
+    const otherId = contacts.some((contact) => contact.id === message.senderId)
+      ? message.senderId
+      : message.recipientId;
+    if (!contacts.some((contact) => contact.id === otherId)) {
+      // Someone new - typically a teacher who has just approved this student. Re-read the list.
+      loadContacts();
+      return;
+    }
+    const incoming = message.senderId === otherId;
+    const open = otherId === activeRef.current;
+    const seen = open && tabVisible();
+
+    if (open) setMessages((current) => mergeMessages(current, [message]));
+    // Anything that arrives in the conversation you are looking at counts as read.
+    if (incoming && seen) markRead(otherId);
+
+    setContacts((current) =>
+      sortContacts(
+        current.map((contact) => {
+          if (contact.id !== otherId) return contact;
+          const newer =
+            !contact.lastMessageAt ||
+            Date.parse(message.sentAt) >= Date.parse(contact.lastMessageAt);
+          return {
+            ...contact,
+            ...(newer && {
+              lastMessage: message.body,
+              lastAttachmentType: message.attachmentType,
+              lastMessageAt: message.sentAt,
+            }),
+            unread: incoming && !seen ? contact.unread + 1 : contact.unread,
+          };
+        }),
+      ),
+    );
+  }
+
+  useChatEvents(
+    (event) => {
+      switch (event.type) {
+        case "MESSAGE":
+          applyMessage(event.message);
+          break;
+        case "READ":
           setContacts((current) =>
             current.map((contact) =>
-              contact.id === otherId ? { ...contact, unread: 0 } : contact,
+              contact.id === event.contactId ? { ...contact, unread: 0 } : contact,
             ),
           );
-          notifyUnreadChanged();
-        }
-      } catch {
-        // Read receipts are not worth surfacing an error over; the next open retries.
+          break;
+        case "SEEN":
+          // They read what you sent them: turn those ticks to read.
+          if (event.contactId === activeRef.current) {
+            setMessages((current) =>
+              current.map((message) =>
+                message.recipientId === event.contactId && !message.readAt
+                  ? { ...message, readAt: event.readAt }
+                  : message,
+              ),
+            );
+          }
+          break;
       }
     },
-    [],
+    // On every (re)connect, catch up on anything that happened while there was no socket.
+    () => {
+      loadContacts();
+      const otherId = activeRef.current;
+      if (otherId !== null) {
+        loadMessages(otherId);
+        if (tabVisible()) markRead(otherId);
+      }
+    },
   );
 
   useEffect(() => {
@@ -93,23 +201,25 @@ export function Chat({ role }: { role: string }) {
 
   useEffect(() => {
     loadContacts();
-    const timer = setInterval(loadContacts, CONTACT_POLL_MS);
-    return () => clearInterval(timer);
   }, [loadContacts]);
 
   useEffect(() => {
+    activeRef.current = activeId;
     if (activeId === null) return;
     lastSeenId.current = 0;
     setMessages([]);
     loadMessages(activeId);
     markRead(activeId);
-    const timer = setInterval(() => {
-      loadMessages(activeId);
-      // Anything that arrives while the conversation is open counts as read.
-      markRead(activeId);
-    }, MESSAGE_POLL_MS);
-    return () => clearInterval(timer);
   }, [activeId, loadMessages, markRead]);
+
+  // Messages that arrived while the tab was in the background are read once it is back.
+  useEffect(() => {
+    const onVisible = () => {
+      if (tabVisible() && activeRef.current !== null) markRead(activeRef.current);
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [markRead]);
 
   useEffect(() => {
     const newest = messages.at(-1);
@@ -124,11 +234,7 @@ export function Chat({ role }: { role: string }) {
 
   async function sendText(body: string) {
     if (activeId === null) return;
-    await api("/chat/messages", {
-      method: "POST",
-      body: JSON.stringify({ recipientId: activeId, body }),
-    });
-    await Promise.all([loadMessages(activeId), loadContacts()]);
+    applyMessage(await sendChatText(activeId, body));
   }
 
   async function sendAttachment(
@@ -144,8 +250,12 @@ export function Chat({ role }: { role: string }) {
     if (durationSeconds !== undefined) {
       payload.append("durationSeconds", String(durationSeconds));
     }
-    await api("/chat/messages/attachment", { method: "POST", body: payload });
-    await Promise.all([loadMessages(activeId), loadContacts()]);
+    applyMessage(
+      await api<ChatMessage>("/chat/messages/attachment", {
+        method: "POST",
+        body: payload,
+      }),
+    );
   }
 
   const term = search.trim().toLowerCase();
@@ -176,6 +286,11 @@ export function Chat({ role }: { role: string }) {
     <>
       <SectionTitle eyebrow="Direct conversations" title="Chat" />
       <Notice error={error} />
+      {reconnecting && (
+        <p className="mb-3 text-xs text-white/45" role="status">
+          Reconnecting… new messages will appear as soon as the connection is back.
+        </p>
+      )}
       <div className="panel grid h-[calc(100vh-13rem)] min-h-[30rem] overflow-hidden md:grid-cols-[300px_1fr]">
         {/* One pane at a time on a phone, both side by side from md up. */}
         <aside
