@@ -15,6 +15,9 @@ const nextConfig: NextConfig = {
     return [
       { source: "/api/:path*", destination: `${backendOrigin}/api/:path*` },
       { source: "/uploads/:path*", destination: `${backendOrigin}/uploads/:path*` },
+      // The chat socket. Next forwards the WebSocket upgrade on a rewrite, so the socket is
+      // same-origin too; a host whose proxy cannot carry one sets NEXT_PUBLIC_WS_URL instead.
+      { source: "/ws", destination: `${backendOrigin}/ws` },
     ];
   },
 };
