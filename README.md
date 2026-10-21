@@ -57,7 +57,7 @@ services later if traffic or team ownership calls for it.
 ### Teacher
 - Create and edit courses and their lesson plans.
 - **Approve or reject enrolment requests** from students, with the requester notified either way.
-- Publish materials: uploaded files, external resources, videos and live-class links.
+- Publish, edit and delete materials: uploaded files, external resources, videos and live-class links.
 - Author timed multiple-choice quizzes that are open only inside a start/end window.
 - Review any student's submitted quiz paper question by question.
 - Reopen a student's attempt so they can sit a quiz again.
@@ -465,6 +465,7 @@ enrolment on, the resource.
 | --- | --- | --- |
 | `GET` | `/api/materials` | By course |
 | `POST` | `/api/materials` | Multipart; `FILE`, `LINK`, `VIDEO` or live-class link |
+| `PATCH` | `/api/materials/{id}` | Multipart; edit title, type or link, or replace the file (the old file is removed) |
 | `DELETE` | `/api/materials/{id}` | Also deletes the stored file |
 
 ### Quizzes
