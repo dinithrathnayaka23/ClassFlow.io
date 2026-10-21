@@ -12,6 +12,9 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -19,8 +22,11 @@ import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.simple.JdbcClient;
+import org.springframework.messaging.handler.annotation.MessageExceptionHandler;
 import org.springframework.messaging.handler.annotation.MessageMapping;
+import org.springframework.messaging.simp.SimpMessageHeaderAccessor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -32,6 +38,11 @@ public class ChatController {
     private static final long MAX_ATTACHMENT_BYTES = 15L * 1024 * 1024;
     /** Voice notes are capped so a stuck recorder cannot upload an hour of silence. */
     private static final int MAX_VOICE_SECONDS = 10 * 60;
+    /** Every chat event for a user travels on this one queue; see ChatEvent. */
+    private static final String QUEUE = "/queue/chat";
+    /** The STOMP header a socket send uses to recognise its own echo. */
+    private static final String CLIENT_ID = "client-id";
+    private static final Logger log = LoggerFactory.getLogger(ChatController.class);
 
     private static final String MESSAGE_COLUMNS = """
             m.id, m.sender_id, sender.full_name AS sender_name, m.recipient_id, m.body, m.sent_at, m.read_at,
@@ -43,14 +54,16 @@ public class ChatController {
     private final UserRepository users;
     private final SimpMessagingTemplate messaging;
     private final FileStorage files;
+    private final ChatTicketService tickets;
 
     public ChatController(JdbcClient jdbc, CurrentUser currentUser, UserRepository users,
-                          SimpMessagingTemplate messaging, FileStorage files) {
+                          SimpMessagingTemplate messaging, FileStorage files, ChatTicketService tickets) {
         this.jdbc = jdbc;
         this.currentUser = currentUser;
         this.users = users;
         this.messaging = messaging;
         this.files = files;
+        this.tickets = tickets;
     }
 
     /**
@@ -86,13 +99,19 @@ public class ChatController {
                 .param("me", user.id()).query(ContactView.class).list();
     }
 
-    /** Drives the message-count badge in the sidebar, so it stays cheap enough to poll. */
+    /**
+     * The message-count badge in the sidebar. Read once when the page loads and again whenever
+     * the socket reconnects; in between, every change to it arrives as an UNREAD event.
+     */
     @GetMapping("/unread")
     public Map<String, Long> unread(Authentication authentication) {
-        var user = currentUser.require(authentication);
-        var total = jdbc.sql("SELECT COUNT(*) FROM chat_messages WHERE recipient_id=:me AND read_at IS NULL")
-                .param("me", user.id()).query(Long.class).single();
-        return Map.of("total", total);
+        return Map.of("total", unreadTotal(currentUser.require(authentication).id()));
+    }
+
+    /** A one-minute, single-use pass for the STOMP CONNECT frame - see ChatTicketService. */
+    @PostMapping("/socket-ticket")
+    public Map<String, String> socketTicket(Authentication authentication) {
+        return Map.of("ticket", tickets.issue(currentUser.require(authentication).email()));
     }
 
     @GetMapping("/messages/{otherId}")
@@ -110,22 +129,31 @@ public class ChatController {
     /**
      * Marks everything the other person sent as read, which is what clears their badge.
      * Only the recipient's own rows are touched, so this cannot forge a read receipt.
+     *
+     * Both sides hear about it: the reader's other tabs clear the badge, and the sender's
+     * ticks turn to read without waiting for anything to refresh.
      */
     @PostMapping("/messages/{otherId}/read")
     public Map<String, Integer> markRead(@PathVariable Long otherId, Authentication authentication) {
         var user = currentUser.require(authentication);
-        var updated = jdbc.sql("""
+        var readAt = jdbc.sql("""
                 UPDATE chat_messages SET read_at=NOW()
                 WHERE recipient_id=:me AND sender_id=:other AND read_at IS NULL
-                """).param("me", user.id()).param("other", otherId).update();
-        return Map.of("marked", updated);
+                RETURNING read_at
+                """).param("me", user.id()).param("other", otherId).query(OffsetDateTime.class).list();
+        if (!readAt.isEmpty()) {
+            push(user.email(), ChatEvent.read(otherId));
+            push(user.email(), ChatEvent.unread(unreadTotal(user.id())));
+            push(users.require(otherId).email(), ChatEvent.seen(user.id(), readAt.get(0)));
+        }
+        return Map.of("marked", readAt.size());
     }
 
+    /** The fallback for a client whose socket is down; a connected client sends over STOMP. */
     @PostMapping("/messages")
     public MessageView sendRest(@Valid @RequestBody SendRequest request, Authentication authentication) {
-        var body = request.body() == null ? "" : request.body().trim();
-        if (body.isEmpty()) throw new ApiException(HttpStatus.BAD_REQUEST, "Write a message before sending");
-        return deliver(currentUser.require(authentication).id(), request.recipientId(), body, null);
+        return deliver(currentUser.require(authentication), request.recipientId(), requireBody(request.body()),
+                null, null);
     }
 
     /**
@@ -153,7 +181,7 @@ public class ChatController {
         var stored = files.save(file, "chat");
         var attachment = new Attachment(stored.url(), stored.name(), kind, file.getSize(),
                 file.getContentType(), "AUDIO".equals(kind) ? durationSeconds : null);
-        return deliver(user.id(), recipientId, body == null ? "" : body.trim(), attachment);
+        return deliver(user, recipientId, body == null ? "" : body.trim(), attachment, null);
     }
 
     /**
@@ -190,23 +218,64 @@ public class ChatController {
                 .body(files.read(row.attachmentUrl()));
     }
 
+    /**
+     * A text message sent over the socket. The client tags it with a client-id header; the
+     * MESSAGE event echoed back to the sender carries the same id, and so does the ERROR event
+     * if it is refused, which is how the sending tab knows which of its sends either refers to.
+     */
     @MessageMapping("/chat.send")
-    public void sendSocket(SendRequest request, Principal principal) {
-        // The handshake is not itself an authenticated endpoint, so a socket can reach here
-        // with nobody attached to it. Say so rather than failing on a null dereference.
-        if (principal == null) throw new ApiException(HttpStatus.UNAUTHORIZED, "Authentication required");
-        var sender = users.findPrincipalByEmail(principal.getName())
+    public void sendSocket(SendRequest request, Principal principal, SimpMessageHeaderAccessor headers) {
+        // SocketAuthInterceptor refuses an anonymous CONNECT, so this is a second line rather
+        // than the first; it also catches an account disabled after its socket was opened.
+        var sender = Optional.ofNullable(principal)
+                .flatMap(found -> users.findPrincipalByEmail(found.getName()))
+                .filter(UserPrincipal::active)
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Authentication required"));
-        var body = request.body() == null ? "" : request.body().trim();
-        if (!body.isEmpty()) deliver(sender.id(), request.recipientId(), body, null);
+        deliver(sender, request.recipientId(), requireBody(request.body()), null,
+                headers.getFirstNativeHeader(CLIENT_ID));
     }
 
-    /** The one place a message row is written, whichever transport carried it in. */
-    private MessageView deliver(Long senderId, Long recipientId, String body, Attachment attachment) {
+    /**
+     * Reports a refused socket send to the session that made it - and only that session, so a
+     * second tab is not shown an error for something it did not do. Without this the sender
+     * would hear nothing back and could only wait for a confirmation that never comes.
+     */
+    @MessageExceptionHandler
+    @SendToUser(destinations = QUEUE, broadcast = false)
+    public ChatEvent socketFailure(Exception failure, SimpMessageHeaderAccessor headers) {
+        var message = failure instanceof ApiException ? failure.getMessage() : "Could not send the message";
+        if (!(failure instanceof ApiException)) log.error("Socket send failed", failure);
+        return ChatEvent.error(headers.getFirstNativeHeader(CLIENT_ID), message);
+    }
+
+    private String requireBody(String body) {
+        var trimmed = body == null ? "" : body.trim();
+        if (trimmed.isEmpty()) throw new ApiException(HttpStatus.BAD_REQUEST, "Write a message before sending");
+        return trimmed;
+    }
+
+    private long unreadTotal(Long userId) {
+        return jdbc.sql("SELECT COUNT(*) FROM chat_messages WHERE recipient_id=:me AND read_at IS NULL")
+                .param("me", userId).query(Long.class).single();
+    }
+
+    /** Addressed by email because that is the name the socket's principal carries. */
+    private void push(String email, ChatEvent event) {
+        messaging.convertAndSendToUser(email, QUEUE, event);
+    }
+
+    /**
+     * The one place a message row is written, whichever transport carried it in, and so the one
+     * place that tells both people about it. The sender is told too: their other tabs show the
+     * message, and the tab that sent it over the socket learns it was stored.
+     */
+    private MessageView deliver(UserPrincipal sender, Long recipientId, String body, Attachment attachment,
+                                String clientId) {
         if (recipientId == null) throw new ApiException(HttpStatus.BAD_REQUEST, "Choose who to send this to");
-        if (recipientId.equals(senderId)) {
+        if (recipientId.equals(sender.id())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot message yourself");
         }
+        var senderId = sender.id();
         var recipient = users.require(recipientId);
         requireReachable(senderId, recipient);
         var id = jdbc.sql("""
@@ -224,7 +293,9 @@ public class ChatController {
                 .param("duration", attachment == null ? null : attachment.durationSeconds())
                 .query(Long.class).single();
         var message = get(id);
-        messaging.convertAndSendToUser(recipient.email(), "/queue/messages", message);
+        push(recipient.email(), ChatEvent.message(message, null));
+        push(recipient.email(), ChatEvent.unread(unreadTotal(recipient.id())));
+        push(sender.email(), ChatEvent.message(message, clientId));
         return message;
     }
 
