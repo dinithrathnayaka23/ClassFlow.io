@@ -61,7 +61,7 @@ services later if traffic or team ownership calls for it.
 - Author timed multiple-choice quizzes that are open only inside a start/end window.
 - Review any student's submitted quiz paper question by question.
 - Reopen a student's attempt so they can sit a quiz again.
-- Post assignments with an optional attachment and a deadline.
+- Post, edit and delete assignments with an optional attachment and a deadline.
 - Collect multi-file submissions, download them, and record marks and feedback.
 - Start forum topics and reply.
 
@@ -488,6 +488,8 @@ enrolment on, the resource.
 | `GET` | `/api/assignments` | Role-scoped list |
 | `GET` | `/api/assignments/limits` | Upload limits, so the client can validate first |
 | `POST` | `/api/assignments` | Multipart; optional attachment |
+| `PATCH` | `/api/assignments/{id}` | Teacher or admin; multipart; edit details, replace or remove the brief |
+| `DELETE` | `/api/assignments/{id}` | Teacher or admin; removes submissions and their files too |
 | `POST` | `/api/assignments/{id}/submissions` | Multipart; one or more files |
 | `DELETE` | `/api/assignments/submissions/{sid}/files/{fid}` | Own submission, until marked; one file must remain |
 | `GET` | `/api/assignments/submissions/files/{fid}` | Authenticated download |
