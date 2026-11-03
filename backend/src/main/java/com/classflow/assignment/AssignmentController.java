@@ -5,9 +5,11 @@ import com.classflow.common.CourseAccess;
 import com.classflow.common.FileStorage;
 import com.classflow.notification.NotificationService;
 import com.classflow.security.CurrentUser;
+import com.classflow.security.UserPrincipal;
 import java.nio.charset.StandardCharsets;
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ContentDisposition;
@@ -117,6 +119,91 @@ public class AssignmentController {
         notifications.notifyCourseStudents(courseId, user.id(), "ASSIGNMENT_POSTED",
                 "New assignment: " + title.trim(), "Due " + due.toLocalDate(), "assignments");
         return get(id, user.id());
+    }
+
+    /**
+     * Changes an assignment's title, description, deadline or brief.
+     *
+     * The brief is kept unless a replacement is uploaded or removeFile is set. Moving the
+     * deadline re-judges every unmarked submission against it, so work handed in before the
+     * new deadline stops reading as LATE and vice versa; marked work keeps its status.
+     */
+    @PatchMapping(value = "/{id}", consumes = "multipart/form-data")
+    @Transactional
+    public AssignmentView update(@PathVariable Long id,
+                                 @RequestParam String title,
+                                 @RequestParam(required = false) String description,
+                                 @RequestParam String deadline,
+                                 @RequestParam(defaultValue = "false") boolean removeFile,
+                                 @RequestPart(required = false) MultipartFile file,
+                                 Authentication authentication) {
+        var user = currentUser.require(authentication);
+        var existing = requireManageable(id, user);
+        if (title == null || title.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Title is required");
+        }
+        OffsetDateTime due;
+        try {
+            due = OffsetDateTime.parse(deadline);
+        } catch (DateTimeParseException exception) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "A valid deadline is required");
+        }
+
+        var url = existing.attachmentUrl();
+        var name = existing.attachmentName();
+        if (file != null && !file.isEmpty()) {
+            var stored = files.save(file, "assignments");
+            url = stored.url();
+            name = stored.name();
+        } else if (removeFile) {
+            url = null;
+            name = null;
+        }
+
+        jdbc.sql("""
+                UPDATE assignments SET title=:title, description=:description, deadline=:deadline,
+                       attachment_url=:url, attachment_name=:name WHERE id=:id
+                """).param("title", title.trim()).param("description", description == null ? "" : description)
+                .param("deadline", due).param("url", url).param("name", name).param("id", id).update();
+        jdbc.sql("""
+                UPDATE assignment_submissions
+                SET status = CASE WHEN submitted_at > :deadline THEN 'LATE' ELSE 'SUBMITTED' END
+                WHERE assignment_id=:id AND status <> 'GRADED'
+                """).param("deadline", due).param("id", id).update();
+        // After the row, so a failed update never leaves the assignment pointing at a deleted file.
+        if (existing.attachmentUrl() != null && !existing.attachmentUrl().equals(url)) {
+            files.delete(existing.attachmentUrl());
+        }
+        return get(id, user.id());
+    }
+
+    /** Deletes an assignment with all its submissions, and every file either of them stored. */
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Transactional
+    public void delete(@PathVariable Long id, Authentication authentication) {
+        var existing = requireManageable(id, currentUser.require(authentication));
+        // Collected before the rows go, or the files can never be found again.
+        var storedFiles = new ArrayList<>(jdbc.sql("""
+                SELECT f.file_url FROM assignment_submission_files f
+                JOIN assignment_submissions s ON s.id=f.submission_id WHERE s.assignment_id=:id
+                """).param("id", id).query(String.class).list());
+        if (existing.attachmentUrl() != null) storedFiles.add(existing.attachmentUrl());
+        // Submissions and their files cascade from this row.
+        jdbc.sql("DELETE FROM assignments WHERE id=:id").param("id", id).update();
+        files.deleteAll(storedFiles);
+    }
+
+    /**
+     * The assignment, once the caller is allowed to change it: an admin, or the teacher who
+     * runs its course. requireManage also refuses changes inside an archived course.
+     */
+    private AssignmentFile requireManageable(Long id, UserPrincipal user) {
+        var existing = jdbc.sql("SELECT course_id, attachment_url, attachment_name FROM assignments WHERE id=:id")
+                .param("id", id).query(AssignmentFile.class).optional()
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Assignment not found"));
+        access.requireManage(existing.courseId(), user);
+        return existing;
     }
 
     /**
@@ -356,6 +443,7 @@ public class AssignmentController {
     public record UploadLimits(long maxFileBytes, int maxFilesPerSubmission) {}
 
     private record AssignmentMeta(Long courseId, OffsetDateTime deadline) {}
+    private record AssignmentFile(Long courseId, String attachmentUrl, String attachmentName) {}
     private record SubmissionFile(String fileUrl, String fileName, Long studentId, Long courseId) {}
     private record SubmissionMeta(Long courseId, Long assignmentId, Long studentId) {}
 }

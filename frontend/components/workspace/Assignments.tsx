@@ -7,8 +7,10 @@ import {
   Download,
   FileCheck2,
   Info,
+  Pencil,
   Plus,
   RefreshCw,
+  Trash2,
   Upload,
   X,
 } from "lucide-react";
@@ -40,6 +42,13 @@ type SubmissionFile = {
 };
 
 type UploadLimits = { maxFileBytes: number; maxFilesPerSubmission: number };
+
+/** An ISO instant as the local "YYYY-MM-DDTHH:mm" a datetime-local input expects. */
+function toLocalInput(value: string) {
+  const date = new Date(value);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
 
 function formatBytes(bytes?: number) {
   if (!bytes) return "";
@@ -210,7 +219,12 @@ export function Assignments({
   const [courseId, setCourseId] = useState<number>();
   const [items, setItems] = useState<Assignment[]>([]);
   const [open, setOpen] = useState(false);
+  // The assignment the dialog is editing; null while it is creating a new one.
+  const [editing, setEditing] = useState<Assignment | null>(null);
   const [error, setError] = useState("");
+  const [confirmId, setConfirmId] = useState<number | null>(null);
+  const [busyId, setBusyId] = useState<number | null>(null);
+  const [rowError, setRowError] = useState("");
   const [submissions, setSubmissions] = useState<Record<number, Submission[]>>(
     {},
   );
@@ -238,13 +252,40 @@ export function Assignments({
         ),
       );
   }, [submissionsOnly, items]);
-  async function create(event: FormEvent<HTMLFormElement>) {
+  const course = courses.find((c) => c.id === courseId);
+  // Teachers and admins edit or delete, never inside an archived course; the server refuses it.
+  const canEdit =
+    role !== "student" && !submissionsOnly && course?.active !== false;
+
+  function openDialog(assignment: Assignment | null) {
+    setEditing(assignment);
+    setError("");
+    setConfirmId(null);
+    setOpen(true);
+  }
+
+  async function remove(id: number) {
+    setRowError("");
+    setBusyId(id);
+    try {
+      await api(`/assignments/${id}`, { method: "DELETE" });
+      setConfirmId(null);
+      load();
+    } catch (e) {
+      setRowError(
+        e instanceof Error ? e.message : "Could not delete the assignment",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     const formElement = event.currentTarget;
     const values = new FormData(formElement);
     // Multipart, not JSON: the brief is an uploaded file.
-    values.set("courseId", String(courseId));
     values.set(
       "deadline",
       new Date(String(values.get("deadline"))).toISOString(),
@@ -254,12 +295,26 @@ export function Assignments({
     const chosen = values.get("file");
     if (chosen instanceof File && chosen.size === 0) values.delete("file");
     try {
-      await api("/assignments", { method: "POST", body: values });
+      if (editing) {
+        await api(`/assignments/${editing.id}`, {
+          method: "PATCH",
+          body: values,
+        });
+      } else {
+        values.set("courseId", String(courseId));
+        await api("/assignments", { method: "POST", body: values });
+      }
       setOpen(false);
       formElement.reset();
       load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not create assignment");
+      setError(
+        e instanceof Error
+          ? e.message
+          : editing
+            ? "Could not update assignment"
+            : "Could not create assignment",
+      );
     }
   }
   async function submit(event: FormEvent<HTMLFormElement>, id: number) {
@@ -355,7 +410,7 @@ export function Assignments({
         title={submissionsOnly ? "Student submissions" : "Assignments"}
         action={
           role !== "student" && !submissionsOnly ? (
-            <button className="btn" onClick={() => setOpen(true)}>
+            <button className="btn" onClick={() => openDialog(null)}>
               <Plus size={16} />
               New assignment
             </button>
@@ -369,6 +424,7 @@ export function Assignments({
           onChange={setCourseId}
         />
       </div>
+      <Notice error={rowError} />
       {items.length ? (
         <div className="space-y-4">
           {items.map((item) => (
@@ -383,7 +439,54 @@ export function Assignments({
                     {item.submissionStatus && (
                       <span className="badge">{item.submissionStatus}</span>
                     )}
+                    {canEdit && confirmId !== item.id && (
+                      <div className="ml-auto flex items-center gap-1">
+                        <button
+                          type="button"
+                          className="rounded-lg p-2 text-white/40 transition hover:bg-white/5 hover:text-neon"
+                          onClick={() => openDialog(item)}
+                          aria-label={`Edit assignment: ${item.title}`}
+                          title="Edit assignment"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-lg p-2 text-white/40 transition hover:bg-white/5 hover:text-red-300"
+                          onClick={() => {
+                            setRowError("");
+                            setConfirmId(item.id);
+                          }}
+                          aria-label={`Delete assignment: ${item.title}`}
+                          title="Delete assignment"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    )}
                   </div>
+                  {confirmId === item.id && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-red-400/30 bg-red-400/10 p-3">
+                      <p className="mr-1 text-sm text-red-200">
+                        Delete this assignment and every submission to it?
+                      </p>
+                      <button
+                        type="button"
+                        className="rounded-full bg-red-400/90 px-3 py-1.5 text-xs font-bold text-ink transition hover:bg-red-300 disabled:opacity-50"
+                        onClick={() => remove(item.id)}
+                        disabled={busyId === item.id}
+                      >
+                        {busyId === item.id ? "Deleting..." : "Delete"}
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-full px-3 py-1.5 text-xs font-bold text-white/60 transition hover:text-white"
+                        onClick={() => setConfirmId(null)}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
                   <h2 className="mt-4 text-lg font-black">{item.title}</h2>
                   {item.attachmentUrl && (
                     <a
@@ -488,27 +591,55 @@ export function Assignments({
         />
       )}
       <Modal
-        title="Create assignment"
+        title={editing ? "Edit assignment" : "Create assignment"}
         open={open}
         onClose={() => setOpen(false)}
       >
         <Notice error={error} />
-        <form className="space-y-4" onSubmit={create}>
+        {/* Keyed so the uncontrolled inputs pick up the assignment being edited. */}
+        <form
+          className="space-y-4"
+          onSubmit={save}
+          key={editing?.id ?? "new"}
+        >
           <Field label="Title">
-            <input className="input" name="title" required />
+            <input
+              className="input"
+              name="title"
+              defaultValue={editing?.title}
+              required
+            />
           </Field>
           <Field label="Description">
-            <textarea className="input" rows={4} name="description" />
+            <textarea
+              className="input"
+              rows={4}
+              name="description"
+              defaultValue={editing?.description}
+            />
           </Field>
           <Field label="Deadline">
             <input
               className="input"
               type="datetime-local"
               name="deadline"
+              defaultValue={editing ? toLocalInput(editing.deadline) : undefined}
               required
             />
           </Field>
           <Field label="Brief or worksheet (optional)">
+            {editing?.attachmentUrl && (
+              <div className="mb-2 space-y-1 text-xs text-white/40">
+                <p>
+                  Current brief: {editing.attachmentName || "attached file"}.
+                  Choose a new file only to replace it.
+                </p>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" name="removeFile" value="true" />
+                  Remove the current brief
+                </label>
+              </div>
+            )}
             <input className="input" type="file" name="file" />
             {limits && (
               <p className="mt-1.5 text-[11px] text-white/30">
@@ -516,7 +647,9 @@ export function Assignments({
               </p>
             )}
           </Field>
-          <button className="btn w-full">Create assignment</button>
+          <button className="btn w-full">
+            {editing ? "Save changes" : "Create assignment"}
+          </button>
         </form>
       </Modal>
     </>
